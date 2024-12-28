@@ -21,7 +21,9 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
         }
 
         if (!session) {
-          throw new Error("No session found");
+          await clearAuthData();
+          navigate("/");
+          return;
         }
 
         // Verify the session is still valid
@@ -31,22 +33,17 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
         }
       } catch (error: any) {
         console.error("Auth error:", error);
-        // Clear auth data before showing error
         await clearAuthData();
         
-        // Show appropriate error message
-        if (error.status === 403) {
-          toast.error("Session expired", {
-            description: "Please sign in again"
-          });
+        if (error.message === "No session found") {
+          // Quietly redirect to login without error message
+          navigate("/");
         } else {
           toast.error("Authentication error", {
             description: "Please sign in again"
           });
+          navigate("/");
         }
-        
-        // Always navigate to home after clearing auth
-        navigate("/");
       } finally {
         setIsLoading(false);
       }
