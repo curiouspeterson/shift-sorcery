@@ -9,9 +9,16 @@ export class ScheduleGenerator {
   private assignments: Assignment[] = [];
   private employeesAssignedToday: Set<string> = new Set();
   private longShiftCount: number = 0;
-  private maxLongShiftsPerDay: number = 3; // Limit long shifts to ensure staff for other periods
-  private maxEarlyShiftsPerDay: number = 6; // Match requirements from image
   private earlyShiftCount: number = 0;
+  private dayShiftCount: number = 0;
+  private swingShiftCount: number = 0;
+  private graveyardShiftCount: number = 0;
+
+  // Constants based on requirements
+  private readonly MAX_EARLY_SHIFTS = 6;
+  private readonly MAX_LONG_SHIFTS = 3;
+  private readonly MIN_SWING_SHIFTS = 7;
+  private readonly MIN_GRAVEYARD_SHIFTS = 6;
 
   constructor() {
     this.supabase = createClient(
@@ -58,6 +65,15 @@ export class ScheduleGenerator {
     return schedule;
   }
 
+  private resetDailyCounts() {
+    this.employeesAssignedToday.clear();
+    this.longShiftCount = 0;
+    this.earlyShiftCount = 0;
+    this.dayShiftCount = 0;
+    this.swingShiftCount = 0;
+    this.graveyardShiftCount = 0;
+  }
+
   private isEmployeeAvailableForShift(
     employeeId: string,
     currentDate: string,
@@ -65,9 +81,19 @@ export class ScheduleGenerator {
     shifts: Shift[],
     availability: Availability[]
   ): boolean {
-    // For early shifts, check count
-    if (shiftType === "Day Shift Early" && this.earlyShiftCount >= this.maxEarlyShiftsPerDay) {
-      console.log(`Max early shifts (${this.maxEarlyShiftsPerDay}) reached for the day`);
+    // Check shift-specific limits
+    if (shiftType === "Day Shift Early" && this.earlyShiftCount >= this.MAX_EARLY_SHIFTS) {
+      console.log(`Max early shifts (${this.MAX_EARLY_SHIFTS}) reached for the day`);
+      return false;
+    }
+
+    if (shiftType === "Swing Shift" && this.swingShiftCount >= this.MIN_SWING_SHIFTS) {
+      console.log(`Max swing shifts reached`);
+      return false;
+    }
+
+    if (shiftType === "Graveyard" && this.graveyardShiftCount >= this.MIN_GRAVEYARD_SHIFTS) {
+      console.log(`Max graveyard shifts reached`);
       return false;
     }
 
@@ -100,6 +126,26 @@ export class ScheduleGenerator {
     return true;
   }
 
+  private shouldAssignLongShift(shiftType: string): boolean {
+    // Reserve some employees for later shifts
+    if (this.longShiftCount >= this.MAX_LONG_SHIFTS) {
+      console.log(`Max long shifts (${this.MAX_LONG_SHIFTS}) reached`);
+      return false;
+    }
+
+    // Ensure we have enough staff for swing and graveyard
+    const remainingEmployees = this.employeesAssignedToday.size;
+    const neededForSwing = Math.max(0, this.MIN_SWING_SHIFTS - this.swingShiftCount);
+    const neededForGraveyard = Math.max(0, this.MIN_GRAVEYARD_SHIFTS - this.graveyardShiftCount);
+
+    if (remainingEmployees < (neededForSwing + neededForGraveyard)) {
+      console.log(`Need to reserve ${neededForSwing + neededForGraveyard} employees for later shifts`);
+      return false;
+    }
+
+    return true;
+  }
+
   private assignShift(
     schedule: any,
     currentDate: string,
@@ -111,19 +157,8 @@ export class ScheduleGenerator {
     const shiftType = getShiftType(shift.start_time);
 
     // Check shift-specific limits
-    if (shiftType === "Day Shift Early") {
-      if (this.earlyShiftCount >= this.maxEarlyShiftsPerDay) {
-        console.log(`Skipping early shift - already at max (${this.maxEarlyShiftsPerDay})`);
-        return false;
-      }
-    }
-
-    // For long shifts, check against daily limit
-    if (shiftDuration > 8) {
-      if (this.longShiftCount >= this.maxLongShiftsPerDay) {
-        console.log(`Skipping long shift - already at max (${this.maxLongShiftsPerDay})`);
-        return false;
-      }
+    if (shiftDuration > 8 && !this.shouldAssignLongShift(shiftType)) {
+      return false;
     }
 
     // Only assign if it helps meet coverage requirements
@@ -137,19 +172,31 @@ export class ScheduleGenerator {
 
       // Update counters
       this.employeesAssignedToday.add(employeeId);
+      
       if (shiftDuration > 8) {
         this.longShiftCount++;
       }
-      if (shiftType === "Day Shift Early") {
-        this.earlyShiftCount++;
+
+      switch (shiftType) {
+        case "Day Shift Early":
+          this.earlyShiftCount++;
+          break;
+        case "Day Shift":
+          this.dayShiftCount++;
+          break;
+        case "Swing Shift":
+          this.swingShiftCount++;
+          break;
+        case "Graveyard":
+          this.graveyardShiftCount++;
+          break;
       }
 
       console.log(`Successfully assigned ${employeeId} to ${shift.name} (${shift.start_time} - ${shift.end_time}) on ${currentDate}`);
-      console.log(`Long shifts: ${this.longShiftCount}/${this.maxLongShiftsPerDay}, Early shifts: ${this.earlyShiftCount}/${this.maxEarlyShiftsPerDay}`);
+      console.log(`Counts - Long: ${this.longShiftCount}/${this.MAX_LONG_SHIFTS}, Early: ${this.earlyShiftCount}/${this.MAX_EARLY_SHIFTS}, Swing: ${this.swingShiftCount}/${this.MIN_SWING_SHIFTS}, Graveyard: ${this.graveyardShiftCount}/${this.MIN_GRAVEYARD_SHIFTS}`);
       return true;
     }
 
-    console.log(`Assignment wouldn't help meet coverage requirements`);
     return false;
   }
 
@@ -163,12 +210,11 @@ export class ScheduleGenerator {
       console.log(`\nProcessing ${format(new Date(currentDate), 'EEEE, MMM d')}`);
       
       // Reset daily counters
-      this.employeesAssignedToday.clear();
-      this.longShiftCount = 0;
-      this.earlyShiftCount = 0;
+      this.resetDailyCounts();
 
       // Process shift types in priority order
-      const shiftTypes = ["Graveyard", "Day Shift Early", "Day Shift", "Swing Shift"];
+      // Graveyard first to ensure coverage, then early shifts, then regular day shifts
+      const shiftTypes = ["Graveyard", "Day Shift Early", "Swing Shift", "Day Shift"];
       
       for (const shiftType of shiftTypes) {
         console.log(`\nProcessing ${shiftType} assignments`);
@@ -178,7 +224,7 @@ export class ScheduleGenerator {
         const shiftsOfType = shifts.filter(s => getShiftType(s.start_time) === shiftType);
         console.log(`Found ${shiftsOfType.length} ${shiftType} shifts`);
 
-        // Sort shifts by duration (shorter shifts first)
+        // Sort shifts by duration (shorter shifts first for better distribution)
         shiftsOfType.sort((a, b) => getShiftDuration(a) - getShiftDuration(b));
 
         // Get available employees for this shift type
@@ -194,7 +240,7 @@ export class ScheduleGenerator {
 
         console.log(`Found ${availableEmployees.length} employees available for ${shiftType}`);
 
-        // Randomize employee order
+        // Randomize employee order for fair distribution
         const shuffledEmployees = [...availableEmployees].sort(() => Math.random() - 0.5);
 
         // Try to assign each available employee
