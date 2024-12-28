@@ -41,20 +41,21 @@ export class ShiftAssignmentManager {
     console.log(`\nChecking time slot capacity for ${shiftType}:`);
     console.log(`Current count: ${this.shiftCounts[shiftType]}, Required: ${required}`);
 
-    // Strict enforcement: Do not allow exceeding minimum requirements
+    // Strict enforcement: Never exceed minimum requirements
     if (increment && this.shiftCounts[shiftType] >= required) {
-      console.log(`❌ Cannot assign: ${shiftType} already at required capacity (${this.shiftCounts[shiftType]}/${required})`);
+      console.log(`❌ Cannot assign: ${shiftType} already at minimum requirement (${this.shiftCounts[shiftType]}/${required})`);
       return false;
     }
 
-    // Check if adding this shift would exceed capacity in any time slot
+    // Check each time slot to ensure we don't exceed the minimum requirement
     if (increment) {
       for (const slot of timeSlots) {
         const currentCount = this.employeesPerTimeSlot.get(slot) || 0;
-        const maxForSlot = Math.min(SCHEDULING_CONSTANTS.MAX_EMPLOYEES_PER_SHIFT, required);
+        // Use required staff count as the maximum allowed
+        const maxAllowed = required;
         
-        if (currentCount + delta > maxForSlot) {
-          console.log(`❌ Cannot assign: would exceed max capacity (${maxForSlot}) at ${slot}`);
+        if (currentCount + delta > maxAllowed) {
+          console.log(`❌ Cannot assign: would exceed minimum requirement (${maxAllowed}) at ${slot}`);
           return false;
         }
       }
@@ -104,10 +105,10 @@ export class ShiftAssignmentManager {
       return false;
     }
 
-    // Strict enforcement: Check against minimum requirements
+    // Strict enforcement: Never exceed minimum requirements
     const required = this.requirementsManager.getRequiredStaffForShiftType(shiftType);
     if (this.shiftCounts[shiftType] >= required) {
-      console.log(`❌ Already met minimum requirement (${required}) for ${shiftType}`);
+      console.log(`❌ Already at minimum requirement (${required}) for ${shiftType}`);
       return false;
     }
 
@@ -186,7 +187,7 @@ export class ShiftAssignmentManager {
 
   public getCapacityInfo(): string {
     return Array.from(this.employeesPerTimeSlot.entries())
-      .map(([slot, count]) => `${slot}: ${count}/${SCHEDULING_CONSTANTS.MAX_EMPLOYEES_PER_SHIFT}`)
+      .map(([slot, count]) => `${slot}: ${count}`)
       .join('\n');
   }
 }
