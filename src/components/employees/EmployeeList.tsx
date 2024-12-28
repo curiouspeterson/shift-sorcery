@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus } from "lucide-react";
+import { Plus, Calendar, Clock, Trash2, Edit } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -12,11 +12,22 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { CreateEmployeeDialog } from "@/components/CreateEmployeeDialog";
 import { useState } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { format } from "date-fns";
 
 export function EmployeeList() {
   const [isCreating, setIsCreating] = useState(false);
   const [isSeeding, setIsSeeding] = useState(false);
   const [isSeedingAvailability, setIsSeedingAvailability] = useState(false);
+  const [selectedEmployee, setSelectedEmployee] = useState<any>(null);
+  const [showAvailability, setShowAvailability] = useState(false);
+  const [showSchedule, setShowSchedule] = useState(false);
   const queryClient = useQueryClient();
 
   const { data: employees, isLoading } = useQuery({
@@ -28,7 +39,7 @@ export function EmployeeList() {
         .order('last_name', { ascending: true });
 
       if (error) {
-        toast("Error fetching employees", {
+        toast.error("Error fetching employees", {
           description: error.message,
         });
         return [];
@@ -37,6 +48,69 @@ export function EmployeeList() {
       return data;
     },
   });
+
+  const { data: availability } = useQuery({
+    queryKey: ['availability', selectedEmployee?.id],
+    enabled: !!selectedEmployee,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('employee_availability')
+        .select('*')
+        .eq('employee_id', selectedEmployee.id);
+
+      if (error) {
+        toast.error("Error fetching availability", {
+          description: error.message,
+        });
+        return [];
+      }
+
+      return data;
+    },
+  });
+
+  const { data: schedules } = useQuery({
+    queryKey: ['schedules', selectedEmployee?.id],
+    enabled: !!selectedEmployee,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('schedule_assignments')
+        .select(`
+          *,
+          schedules (*),
+          shifts (*)
+        `)
+        .eq('employee_id', selectedEmployee.id)
+        .order('date', { ascending: false });
+
+      if (error) {
+        toast.error("Error fetching schedules", {
+          description: error.message,
+        });
+        return [];
+      }
+
+      return data;
+    },
+  });
+
+  const handleDeleteEmployee = async (employeeId: string) => {
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .delete()
+        .eq('id', employeeId);
+
+      if (error) throw error;
+
+      toast.success("Employee deleted successfully");
+      queryClient.invalidateQueries({ queryKey: ['employees'] });
+    } catch (error: any) {
+      toast.error("Error deleting employee", {
+        description: error.message,
+      });
+    }
+  };
 
   const handleSeedEmployees = async () => {
     try {
@@ -47,13 +121,10 @@ export function EmployeeList() {
       
       if (error) throw error;
       
-      toast("Success", {
-        description: "Successfully created 20 test employees",
-      });
-      
-      await queryClient.invalidateQueries({ queryKey: ['employees'] });
+      toast.success("Successfully created 20 test employees");
+      queryClient.invalidateQueries({ queryKey: ['employees'] });
     } catch (error: any) {
-      toast("Error seeding employees", {
+      toast.error("Error seeding employees", {
         description: error.message,
       });
     } finally {
@@ -70,16 +141,19 @@ export function EmployeeList() {
       
       if (error) throw error;
       
-      toast("Success", {
-        description: "Successfully added availability for all employees",
-      });
+      toast.success("Successfully added availability for all employees");
     } catch (error: any) {
-      toast("Error seeding availability", {
+      toast.error("Error seeding availability", {
         description: error.message,
       });
     } finally {
       setIsSeedingAvailability(false);
     }
+  };
+
+  const getDayName = (day: number) => {
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    return days[day];
   };
 
   if (isLoading) {
@@ -129,23 +203,31 @@ export function EmployeeList() {
                   variant="outline"
                   className="w-full"
                   onClick={() => {
-                    toast("Coming soon", {
-                      description: "This feature is not yet implemented.",
-                    });
+                    setSelectedEmployee(employee);
+                    setShowAvailability(true);
                   }}
                 >
+                  <Clock className="mr-2 h-4 w-4" />
                   View Availability
                 </Button>
                 <Button
                   variant="outline"
                   className="w-full"
                   onClick={() => {
-                    toast("Coming soon", {
-                      description: "This feature is not yet implemented.",
-                    });
+                    setSelectedEmployee(employee);
+                    setShowSchedule(true);
                   }}
                 >
+                  <Calendar className="mr-2 h-4 w-4" />
                   View Schedule
+                </Button>
+                <Button
+                  variant="destructive"
+                  className="w-full"
+                  onClick={() => handleDeleteEmployee(employee.id)}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete Employee
                 </Button>
               </div>
             </CardContent>
@@ -157,6 +239,64 @@ export function EmployeeList() {
         open={isCreating}
         onOpenChange={setIsCreating}
       />
+
+      <Dialog open={showAvailability} onOpenChange={setShowAvailability}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              {selectedEmployee?.first_name} {selectedEmployee?.last_name}'s Availability
+            </DialogTitle>
+            <DialogDescription>
+              Weekly availability schedule
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {availability?.map((slot) => (
+              <div key={slot.id} className="flex justify-between items-center p-2 bg-muted rounded-lg">
+                <span className="font-medium">{getDayName(slot.day_of_week)}</span>
+                <span>
+                  {slot.start_time} - {slot.end_time}
+                </span>
+              </div>
+            ))}
+            {(!availability || availability.length === 0) && (
+              <p className="text-muted-foreground text-center py-4">
+                No availability set
+              </p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showSchedule} onOpenChange={setShowSchedule}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              {selectedEmployee?.first_name} {selectedEmployee?.last_name}'s Schedule
+            </DialogTitle>
+            <DialogDescription>
+              Upcoming and past shifts
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {schedules?.map((assignment) => (
+              <div key={assignment.id} className="flex justify-between items-center p-2 bg-muted rounded-lg">
+                <span className="font-medium">
+                  {format(new Date(assignment.date), 'MMM d, yyyy')}
+                </span>
+                <span>
+                  {assignment.shifts.start_time} - {assignment.shifts.end_time}
+                </span>
+              </div>
+            ))}
+            {(!schedules || schedules.length === 0) && (
+              <p className="text-muted-foreground text-center py-4">
+                No scheduled shifts
+              </p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
