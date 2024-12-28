@@ -6,6 +6,7 @@ import {
   Settings,
   Users,
   Clock3,
+  Grid,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SidebarMenu, SidebarMenuItem, SidebarMenuButton } from "@/components/ui/sidebar";
@@ -48,6 +49,11 @@ export function SidebarNavigation({ profile }: SidebarNavigationProps) {
       path: "/dashboard/employees",
     },
     ...(profile?.role === 'manager' ? [
+      {
+        title: "Shifts",
+        icon: Grid,
+        path: "/dashboard/shifts",
+      },
       {
         title: "Settings",
         icon: Settings,
