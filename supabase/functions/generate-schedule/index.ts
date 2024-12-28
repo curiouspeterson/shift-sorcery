@@ -31,6 +31,38 @@ interface Availability {
   shift_id: string;
 }
 
+// Helper function to determine shift type (day/swing/graveyard)
+function getShiftType(startTime: string): 'day' | 'swing' | 'graveyard' {
+  const hour = parseInt(startTime.split(':')[0]);
+  if (hour >= 5 && hour < 14) return 'day';
+  if (hour >= 14 && hour < 22) return 'swing';
+  return 'graveyard';
+}
+
+// Helper function to check if a shift covers a requirement
+function shiftCoversPeriod(shift: Shift, req: CoverageRequirement) {
+  const shiftStart = new Date(`2000-01-01T${shift.start_time}`).getTime();
+  const shiftEnd = new Date(`2000-01-01T${shift.end_time}`).getTime();
+  const reqStart = new Date(`2000-01-01T${req.start_time}`).getTime();
+  const reqEnd = new Date(`2000-01-01T${req.end_time}`).getTime();
+
+  // Handle overnight shifts
+  if (reqEnd < reqStart) {
+    return (shiftStart <= reqEnd || shiftStart >= reqStart) &&
+           (shiftEnd <= reqEnd || shiftEnd >= reqStart);
+  }
+
+  return shiftStart <= reqEnd && shiftEnd >= reqStart;
+}
+
+// Helper function to get shift duration in hours
+function getShiftDuration(shift: Shift): number {
+  const start = new Date(`2000-01-01T${shift.start_time}`);
+  const end = new Date(`2000-01-01T${shift.end_time}`);
+  if (end < start) end.setDate(end.getDate() + 1);
+  return (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -87,23 +119,8 @@ Deno.serve(async (req) => {
       throw new Error('Failed to create schedule');
     }
 
-    // Helper function to check if a shift covers a requirement
-    const shiftCoversPeriod = (shift: Shift, req: CoverageRequirement) => {
-      const shiftStart = new Date(`2000-01-01T${shift.start_time}`).getTime();
-      const shiftEnd = new Date(`2000-01-01T${shift.end_time}`).getTime();
-      const reqStart = new Date(`2000-01-01T${req.start_time}`).getTime();
-      const reqEnd = new Date(`2000-01-01T${req.end_time}`).getTime();
-
-      // Handle overnight shifts
-      if (reqEnd < reqStart) {
-        return (shiftStart <= reqEnd || shiftStart >= reqStart) &&
-               (shiftEnd <= reqEnd || shiftEnd >= reqStart);
-      }
-
-      return shiftStart <= reqEnd && shiftEnd >= reqStart;
-    };
-
     const assignments = [];
+    const employeeShiftPatterns = new Map<string, string>(); // Track primary shift pattern for each employee
     
     // Process each day of the week
     for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
@@ -128,21 +145,21 @@ Deno.serve(async (req) => {
           shiftId: a.shift_id,
         }));
 
-      // Shuffle available employees to randomize assignments while maintaining fairness
+      // First pass: Assign 12-hour shifts and track patterns
       const shuffledEmployees = availableEmployees.sort(() => Math.random() - 0.5);
-
-      // First pass: Meet minimum requirements
       for (const emp of shuffledEmployees) {
-        // Skip if employee already assigned for this day
-        if (assignments.some(a => 
-          a.employee_id === emp.employeeId && 
-          a.date === currentDate
-        )) {
+        if (assignments.some(a => a.employee_id === emp.employeeId && a.date === currentDate)) {
           continue;
         }
 
         const shift = shifts.find(s => s.id === emp.shiftId);
         if (!shift) continue;
+
+        const shiftDuration = getShiftDuration(shift);
+        if (shiftDuration >= 12) {
+          // Track the employee's shift pattern based on their 12-hour shifts
+          employeeShiftPatterns.set(emp.employeeId, getShiftType(shift.start_time));
+        }
 
         // Find requirements that this shift would help cover and aren't at minimum yet
         const uncoveredReqs = coverageReqs.filter(req => {
@@ -152,7 +169,6 @@ Deno.serve(async (req) => {
                  tracking.currentCount < req.min_employees;
         });
 
-        // Only assign if this helps meet an unfulfilled minimum requirement
         if (uncoveredReqs.length > 0) {
           assignments.push({
             schedule_id: schedule.id,
@@ -161,7 +177,6 @@ Deno.serve(async (req) => {
             date: currentDate,
           });
 
-          // Update coverage counts
           uncoveredReqs.forEach(req => {
             const key = `${req.start_time}-${req.end_time}`;
             const tracking = coverageTracking.get(key);
@@ -172,6 +187,54 @@ Deno.serve(async (req) => {
           });
 
           console.log(`Assigned ${emp.employeeId} to shift ${shift.name} on ${currentDate}`);
+        }
+      }
+
+      // Second pass: Assign 4-hour shifts based on established patterns
+      for (const emp of shuffledEmployees) {
+        if (assignments.some(a => a.employee_id === emp.employeeId && a.date === currentDate)) {
+          continue;
+        }
+
+        const shift = shifts.find(s => s.id === emp.shiftId);
+        if (!shift) continue;
+
+        const shiftDuration = getShiftDuration(shift);
+        if (shiftDuration <= 4) {
+          const employeePattern = employeeShiftPatterns.get(emp.employeeId);
+          const shiftType = getShiftType(shift.start_time);
+
+          // Only assign 4-hour shift if it matches the employee's established pattern
+          if (employeePattern && employeePattern !== shiftType) {
+            continue;
+          }
+
+          const uncoveredReqs = coverageReqs.filter(req => {
+            const tracking = coverageTracking.get(`${req.start_time}-${req.end_time}`);
+            return shiftCoversPeriod(shift, req) && 
+                   tracking && 
+                   tracking.currentCount < req.min_employees;
+          });
+
+          if (uncoveredReqs.length > 0) {
+            assignments.push({
+              schedule_id: schedule.id,
+              employee_id: emp.employeeId,
+              shift_id: emp.shiftId,
+              date: currentDate,
+            });
+
+            uncoveredReqs.forEach(req => {
+              const key = `${req.start_time}-${req.end_time}`;
+              const tracking = coverageTracking.get(key);
+              if (tracking) {
+                tracking.currentCount++;
+                tracking.minimumMet = tracking.currentCount >= req.min_employees;
+              }
+            });
+
+            console.log(`Assigned ${emp.employeeId} to 4-hour shift ${shift.name} on ${currentDate}`);
+          }
         }
       }
 
