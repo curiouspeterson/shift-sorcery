@@ -6,6 +6,7 @@ import { ScheduleCalendar } from "./schedule/ScheduleCalendar";
 import { ScheduleControls } from "./schedule/ScheduleControls";
 import { Button } from "./ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 
 export function ScheduleGenerator() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
@@ -58,25 +59,35 @@ export function ScheduleGenerator() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <Button variant="outline" onClick={handlePreviousWeek}>
-          <ChevronLeft className="h-4 w-4 mr-2" />
-          Previous Week
-        </Button>
-        <span className="font-medium">
-          Week of {format(startOfWeek(selectedDate), "MMM d, yyyy")}
-        </span>
-        <Button variant="outline" onClick={handleNextWeek}>
-          Next Week
-          <ChevronRight className="h-4 w-4 ml-2" />
-        </Button>
-      </div>
-      <ScheduleControls
-        selectedDate={selectedDate}
-        userId={userId}
-        onScheduleGenerated={refetch}
-        scheduleData={scheduleData}
-      />
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle>Schedule Management</CardTitle>
+            <div className="flex items-center gap-4">
+              <Button variant="outline" onClick={handlePreviousWeek}>
+                <ChevronLeft className="h-4 w-4 mr-2" />
+                Previous Week
+              </Button>
+              <span className="font-medium">
+                Week of {format(startOfWeek(selectedDate), "MMM d, yyyy")}
+              </span>
+              <Button variant="outline" onClick={handleNextWeek}>
+                Next Week
+                <ChevronRight className="h-4 w-4 ml-2" />
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <ScheduleControls
+            selectedDate={selectedDate}
+            userId={userId}
+            onScheduleGenerated={refetch}
+            scheduleData={scheduleData}
+          />
+        </CardContent>
+      </Card>
+
       <ScheduleCalendar
         selectedDate={selectedDate}
         onDateSelect={(date) => date && setSelectedDate(date)}

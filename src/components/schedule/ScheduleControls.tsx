@@ -4,6 +4,7 @@ import { generateScheduleForWeek, publishSchedule } from "@/utils/schedulingEngi
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { format, startOfWeek } from "date-fns";
+import { Badge } from "@/components/ui/badge";
 
 interface ScheduleControlsProps {
   selectedDate: Date;
@@ -50,32 +51,37 @@ export function ScheduleControls({
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Schedule Controls</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="flex flex-col gap-4">
-          <Button onClick={handleGenerateSchedule}>
-            Generate Schedule for Selected Week
-          </Button>
-          {scheduleData?.status === 'draft' && (
-            <div className="space-y-2">
-              <p className="text-sm text-muted-foreground">
-                This schedule is in draft mode. Review the assignments and publish when ready.
-              </p>
-              <Button onClick={handlePublishSchedule} variant="secondary">
-                Publish Schedule
-              </Button>
-            </div>
-          )}
-          {scheduleData?.status === 'published' && (
-            <p className="text-sm text-green-600">
-              This schedule has been published and employees have been notified.
-            </p>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="space-y-1">
+          <h3 className="text-lg font-medium">Schedule Status</h3>
+          {scheduleData ? (
+            <Badge variant={scheduleData.status === 'draft' ? 'secondary' : 'success'}>
+              {scheduleData.status === 'draft' ? 'Draft' : 'Published'}
+            </Badge>
+          ) : (
+            <Badge variant="outline">No Schedule</Badge>
           )}
         </div>
-      </CardContent>
-    </Card>
+        <div className="space-x-2">
+          <Button onClick={handleGenerateSchedule}>
+            Generate Schedule
+          </Button>
+          {scheduleData?.status === 'draft' && (
+            <Button onClick={handlePublishSchedule} variant="secondary">
+              Publish Schedule
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {scheduleData?.status === 'draft' && (
+        <div className="bg-muted p-4 rounded-lg">
+          <p className="text-sm text-muted-foreground">
+            This schedule is in draft mode. Review the assignments below and publish when ready.
+          </p>
+        </div>
+      )}
+    </div>
   );
 }
