@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
@@ -38,6 +38,7 @@ export function EmployeeAvailabilityDialog({
   const [editingDay, setEditingDay] = useState<number | null>(null);
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("17:00");
+  const queryClient = useQueryClient();
 
   const { data: availability } = useQuery({
     queryKey: ['availability', employee?.id],
@@ -52,6 +53,23 @@ export function EmployeeAvailabilityDialog({
         toast.error("Error fetching availability", {
           description: error.message,
         });
+        return [];
+      }
+
+      return data;
+    },
+  });
+
+  const { data: shifts } = useQuery({
+    queryKey: ['shifts'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('shifts')
+        .select('*')
+        .order('start_time');
+
+      if (error) {
+        toast.error("Error fetching shifts");
         return [];
       }
 
@@ -90,6 +108,47 @@ export function EmployeeAvailabilityDialog({
     setEditingDay(null);
   };
 
+  const testAvailabilityMutation = useMutation({
+    mutationFn: async () => {
+      // Select a random shift
+      if (!shifts?.length) {
+        throw new Error("No shifts available");
+      }
+      const randomShift = shifts[Math.floor(Math.random() * shifts.length)];
+      
+      // Delete existing availability
+      const { error: deleteError } = await supabase
+        .from('employee_availability')
+        .delete()
+        .eq('employee_id', employee.id);
+
+      if (deleteError) throw deleteError;
+
+      // Create new availability for Monday through Friday
+      const availabilityPromises = [1, 2, 3, 4, 5].map(dayOfWeek => 
+        supabase
+          .from('employee_availability')
+          .insert({
+            employee_id: employee.id,
+            day_of_week: dayOfWeek,
+            start_time: randomShift.start_time,
+            end_time: randomShift.end_time,
+          })
+      );
+
+      await Promise.all(availabilityPromises);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['availability', employee?.id] });
+      toast.success("Test availability created successfully");
+    },
+    onError: (error: any) => {
+      toast.error("Error creating test availability", {
+        description: error.message,
+      });
+    },
+  });
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
@@ -101,6 +160,17 @@ export function EmployeeAvailabilityDialog({
             Weekly availability schedule
           </DialogDescription>
         </DialogHeader>
+
+        <div className="flex justify-end mb-4">
+          <Button 
+            variant="outline"
+            onClick={() => testAvailabilityMutation.mutate()}
+            disabled={testAvailabilityMutation.isPending}
+          >
+            Test Availability
+          </Button>
+        </div>
+
         <div className="space-y-4">
           {DAYS_OF_WEEK.map((day, index) => {
             const dayAvailability = availability?.find(
