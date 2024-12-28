@@ -10,19 +10,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { AvailabilityTimeSelect } from "./AvailabilityTimeSelect";
-import { AvailabilityDayItem } from "./AvailabilityDayItem";
 import { useAvailabilityMutations } from "@/hooks/useAvailabilityMutations";
-
-const DAYS_OF_WEEK = [
-  "Sunday",
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-];
+import { AvailabilityList } from "./availability/AvailabilityList";
+import { AvailabilityEditor } from "./availability/AvailabilityEditor";
 
 interface EmployeeAvailabilityDialogProps {
   employee: any;
@@ -50,12 +40,9 @@ export function EmployeeAvailabilityDialog({
         .eq('employee_id', employee.id);
 
       if (error) {
-        toast.error("Error fetching availability", {
-          description: error.message,
-        });
+        toast.error("Error fetching availability");
         return [];
       }
-
       return data;
     },
   });
@@ -72,7 +59,6 @@ export function EmployeeAvailabilityDialog({
         toast.error("Error fetching shifts");
         return [];
       }
-
       return data;
     },
   });
@@ -110,12 +96,10 @@ export function EmployeeAvailabilityDialog({
 
   const testAvailabilityMutation = useMutation({
     mutationFn: async () => {
-      // Select a random shift
       if (!shifts?.length) {
         throw new Error("No shifts available");
       }
-      const randomShift = shifts[Math.floor(Math.random() * shifts.length)];
-      
+
       // Delete existing availability
       const { error: deleteError } = await supabase
         .from('employee_availability')
@@ -124,19 +108,88 @@ export function EmployeeAvailabilityDialog({
 
       if (deleteError) throw deleteError;
 
-      // Create new availability for Monday through Friday
-      const availabilityPromises = [1, 2, 3, 4, 5].map(dayOfWeek => 
-        supabase
-          .from('employee_availability')
-          .insert({
-            employee_id: employee.id,
-            day_of_week: dayOfWeek,
-            start_time: randomShift.start_time,
-            end_time: randomShift.end_time,
-          })
-      );
-
-      await Promise.all(availabilityPromises);
+      // Randomly choose between 4x10 or 3x12+4 schedule pattern
+      const usesTenHourShifts = Math.random() < 0.5;
+      
+      let selectedShift;
+      let startDay = Math.floor(Math.random() * 4); // Random start day (0-3)
+      
+      if (usesTenHourShifts) {
+        // Find 10-hour shifts
+        const tenHourShifts = shifts.filter(s => {
+          const startHour = parseInt(s.start_time.split(':')[0]);
+          const endHour = parseInt(s.end_time.split(':')[0]);
+          const duration = (endHour < startHour ? endHour + 24 : endHour) - startHour;
+          return duration === 10;
+        });
+        
+        if (tenHourShifts.length === 0) throw new Error("No 10-hour shifts available");
+        selectedShift = tenHourShifts[Math.floor(Math.random() * tenHourShifts.length)];
+        
+        // Create availability for 4 consecutive days
+        const availabilityPromises = Array.from({ length: 4 }, (_, i) => {
+          const dayOfWeek = (startDay + i) % 7;
+          return supabase
+            .from('employee_availability')
+            .insert({
+              employee_id: employee.id,
+              day_of_week: dayOfWeek,
+              start_time: selectedShift.start_time,
+              end_time: selectedShift.end_time,
+            });
+        });
+        
+        await Promise.all(availabilityPromises);
+      } else {
+        // Find 12-hour and 4-hour shifts
+        const twelveHourShifts = shifts.filter(s => {
+          const startHour = parseInt(s.start_time.split(':')[0]);
+          const endHour = parseInt(s.end_time.split(':')[0]);
+          const duration = (endHour < startHour ? endHour + 24 : endHour) - startHour;
+          return duration === 12;
+        });
+        
+        const fourHourShifts = shifts.filter(s => {
+          const startHour = parseInt(s.start_time.split(':')[0]);
+          const endHour = parseInt(s.end_time.split(':')[0]);
+          const duration = (endHour < startHour ? endHour + 24 : endHour) - startHour;
+          return duration === 4;
+        });
+        
+        if (twelveHourShifts.length === 0 || fourHourShifts.length === 0) {
+          throw new Error("Required shifts not available");
+        }
+        
+        const selectedTwelveHourShift = twelveHourShifts[Math.floor(Math.random() * twelveHourShifts.length)];
+        const selectedFourHourShift = fourHourShifts[Math.floor(Math.random() * fourHourShifts.length)];
+        
+        // Create availability for 3 twelve-hour shifts and 1 four-hour shift
+        const availabilityPromises = [
+          // Three 12-hour shifts
+          ...Array.from({ length: 3 }, (_, i) => {
+            const dayOfWeek = (startDay + i) % 7;
+            return supabase
+              .from('employee_availability')
+              .insert({
+                employee_id: employee.id,
+                day_of_week: dayOfWeek,
+                start_time: selectedTwelveHourShift.start_time,
+                end_time: selectedTwelveHourShift.end_time,
+              });
+          }),
+          // One 4-hour shift
+          supabase
+            .from('employee_availability')
+            .insert({
+              employee_id: employee.id,
+              day_of_week: (startDay + 3) % 7,
+              start_time: selectedFourHourShift.start_time,
+              end_time: selectedFourHourShift.end_time,
+            })
+        ];
+        
+        await Promise.all(availabilityPromises);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['availability', employee?.id] });
@@ -171,59 +224,26 @@ export function EmployeeAvailabilityDialog({
           </Button>
         </div>
 
-        <div className="space-y-4">
-          {DAYS_OF_WEEK.map((day, index) => {
-            const dayAvailability = availability?.find(
-              (a) => a.day_of_week === index
-            );
+        <AvailabilityList
+          availability={availability || []}
+          onEdit={(dayIndex, existingStartTime, existingEndTime) => {
+            setEditingDay(dayIndex);
+            if (existingStartTime) setStartTime(existingStartTime);
+            if (existingEndTime) setEndTime(existingEndTime);
+          }}
+          onDelete={(id) => deleteMutation.mutate(id)}
+          onAdd={handleAddAvailability}
+        />
 
-            return (
-              <AvailabilityDayItem
-                key={index}
-                day={day}
-                dayIndex={index}
-                availability={dayAvailability}
-                onEdit={(dayIndex) => {
-                  setEditingDay(dayIndex);
-                  if (dayAvailability) {
-                    setStartTime(dayAvailability.start_time);
-                    setEndTime(dayAvailability.end_time);
-                  }
-                }}
-                onDelete={(id) => deleteMutation.mutate(id)}
-                onAdd={handleAddAvailability}
-              />
-            );
-          })}
-        </div>
-
-        {editingDay !== null && (
-          <div className="space-y-4 mt-4 p-4 border rounded-lg">
-            <h3 className="font-medium">
-              {editingDay !== null ? `Edit ${DAYS_OF_WEEK[editingDay]} Availability` : 'Add Availability'}
-            </h3>
-            <div className="grid grid-cols-2 gap-4">
-              <AvailabilityTimeSelect
-                label="Start Time"
-                value={startTime}
-                onValueChange={setStartTime}
-              />
-              <AvailabilityTimeSelect
-                label="End Time"
-                value={endTime}
-                onValueChange={setEndTime}
-              />
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setEditingDay(null)}>
-                Cancel
-              </Button>
-              <Button onClick={handleSave}>
-                Save
-              </Button>
-            </div>
-          </div>
-        )}
+        <AvailabilityEditor
+          editingDay={editingDay}
+          startTime={startTime}
+          endTime={endTime}
+          onStartTimeChange={setStartTime}
+          onEndTimeChange={setEndTime}
+          onCancel={() => setEditingDay(null)}
+          onSave={handleSave}
+        />
       </DialogContent>
     </Dialog>
   );
