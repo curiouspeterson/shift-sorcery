@@ -29,13 +29,6 @@ export class SchedulingStrategy {
       return false;
     }
 
-    // Sort employees by current weekly hours to prioritize those with fewer hours
-    availableEmployees.sort((a, b) => {
-      const hoursA = this.assignmentManager.getEmployeeWeeklyHours(a.id);
-      const hoursB = this.assignmentManager.getEmployeeWeeklyHours(b.id);
-      return hoursA - hoursB;
-    });
-
     // Process each shift type
     for (const shiftType of shiftTypes) {
       const success = await this.assignShiftType(
@@ -49,7 +42,18 @@ export class SchedulingStrategy {
       
       if (!success) {
         console.log(`Failed to assign ${shiftType} shifts for ${currentDate}`);
-        return false;
+        // Instead of failing immediately, check if we have met minimum staffing requirements
+        const assigned = this.assignmentManager.getCurrentCounts()[shiftType] || 0;
+        const required = this.requirementsManager.getRequiredStaffForShiftType(shiftType);
+        const percentage = (assigned / required) * 100;
+        
+        if (percentage < SCHEDULING_CONSTANTS.MIN_STAFF_PERCENTAGE) {
+          console.log(`Insufficient staffing for ${shiftType}: ${percentage.toFixed(1)}% of required staff`);
+          return false;
+        } else {
+          console.log(`Acceptable partial staffing for ${shiftType}: ${percentage.toFixed(1)}% of required staff`);
+          continue;
+        }
       }
     }
 
@@ -57,7 +61,8 @@ export class SchedulingStrategy {
   }
 
   private getAvailableEmployees(data: any, dayOfWeek: number): any[] {
-    return data.employees.filter(employee => {
+    // First get all employees with availability for this day
+    const employeesWithAvailability = data.employees.filter(employee => {
       const hasAvailability = data.availability.some(a => 
         a.employee_id === employee.id && 
         a.day_of_week === dayOfWeek
@@ -68,6 +73,13 @@ export class SchedulingStrategy {
       }
       
       return hasAvailability;
+    });
+
+    // Sort by weekly hours to prioritize employees with fewer hours
+    return employeesWithAvailability.sort((a, b) => {
+      const hoursA = this.assignmentManager.getEmployeeWeeklyHours(a.id);
+      const hoursB = this.assignmentManager.getEmployeeWeeklyHours(b.id);
+      return hoursA - hoursB;
     });
   }
 
@@ -101,8 +113,9 @@ export class SchedulingStrategy {
       
       if (availableForShift.length === 0) {
         console.log(`No more available employees for ${shiftType}`);
-        // If we have at least some staff assigned, consider it a partial success
-        return currentCount > 0;
+        // Return true if we have at least the minimum required percentage
+        const percentage = (currentCount / required) * 100;
+        return percentage >= SCHEDULING_CONSTANTS.MIN_STAFF_PERCENTAGE;
       }
 
       const assigned = await this.tryAssignEmployees(
@@ -118,12 +131,13 @@ export class SchedulingStrategy {
         console.log(`Successfully assigned shift (${currentCount}/${required})`);
       } else if (attempts >= SCHEDULING_CONSTANTS.MAX_ATTEMPTS_PER_SHIFT) {
         console.log(`Max attempts reached for ${shiftType}`);
-        // If we have at least 75% of required staff, consider it acceptable
-        return currentCount >= Math.ceil(required * 0.75);
+        // Return true if we have at least the minimum required percentage
+        const percentage = (currentCount / required) * 100;
+        return percentage >= SCHEDULING_CONSTANTS.MIN_STAFF_PERCENTAGE;
       }
     }
 
-    return true;
+    return currentCount >= Math.ceil(required * SCHEDULING_CONSTANTS.MIN_STAFF_PERCENTAGE / 100);
   }
 
   private getAvailableEmployeesForShift(employees: any[]): any[] {
