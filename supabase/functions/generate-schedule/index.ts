@@ -47,29 +47,44 @@ Deno.serve(async (req) => {
     const { data: shifts } = await supabase
       .from('shifts')
       .select('*')
+      .order('start_time')
 
     if (!shifts?.length) {
       throw new Error('No shifts defined')
     }
 
-    // Simple assignment: distribute shifts among employees
     const assignments = []
+    
+    // Assign a random shift to each employee that will be consistent throughout the week
+    const employeeShifts = employees.map(employee => ({
+      employee,
+      // Assign a random shift that will be used for all workdays
+      shift: shifts[Math.floor(Math.random() * shifts.length)]
+    }))
+
+    // Generate assignments for each day of the week (Monday to Friday)
     for (let i = 0; i < 7; i++) {
       const date = format(addDays(new Date(weekStartDate), i), 'yyyy-MM-dd')
+      const dayOfWeek = new Date(date).getDay()
       
-      for (const shift of shifts) {
-        // Assign each shift to a random employee
-        // In a real app, you'd want more sophisticated logic here
-        const employee = employees[Math.floor(Math.random() * employees.length)]
-        
+      // Skip weekends (0 = Sunday, 6 = Saturday)
+      if (dayOfWeek === 0 || dayOfWeek === 6) {
+        console.log(`Skipping weekend day: ${date}`)
+        continue
+      }
+      
+      // For each employee, assign their consistent shift
+      employeeShifts.forEach(({ employee, shift }) => {
         assignments.push({
           schedule_id: schedule.id,
           employee_id: employee.id,
           shift_id: shift.id,
           date: date,
         })
-      }
+      })
     }
+
+    console.log(`Generated ${assignments.length} assignments for ${employees.length} employees`)
 
     // Insert assignments
     const { error: assignmentError } = await supabase
@@ -79,10 +94,14 @@ Deno.serve(async (req) => {
     if (assignmentError) throw assignmentError
 
     return new Response(
-      JSON.stringify({ message: 'Schedule generated successfully' }),
+      JSON.stringify({ 
+        message: 'Schedule generated successfully',
+        assignmentsCount: assignments.length
+      }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (error) {
+    console.error('Error generating schedule:', error)
     return new Response(
       JSON.stringify({ error: error.message }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
