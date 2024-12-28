@@ -16,36 +16,54 @@ export class ScheduleGenerator {
     try {
       console.log('\n=== Starting Schedule Generation ===');
       const data = await this.dataFetcher.fetchSchedulingData();
+      
+      if (!data.employees || data.employees.length === 0) {
+        throw new Error('No employees available for scheduling');
+      }
+
+      if (!data.shifts || data.shifts.length === 0) {
+        throw new Error('No shifts defined in the system');
+      }
+
       const requirementsManager = new ShiftRequirementsManager(data.coverageReqs);
       
       let attemptCount = 0;
       let validSchedule = false;
       let scheduleId: string | null = null;
+      let lastError: Error | null = null;
 
       while (!validSchedule && attemptCount < SCHEDULING_CONSTANTS.MAX_SCHEDULING_ATTEMPTS) {
         attemptCount++;
         console.log(`\n=== Attempt ${attemptCount} of ${SCHEDULING_CONSTANTS.MAX_SCHEDULING_ATTEMPTS} ===`);
         
-        const schedule = await this.dataFetcher.createSchedule(weekStartDate, userId);
-        scheduleId = schedule.id;
-        
-        const assignmentManager = new ShiftAssignmentManager(requirementsManager);
-        const schedulingStrategy = new SchedulingStrategy(assignmentManager, requirementsManager);
-        
-        const weekSuccess = await this.generateWeeklySchedule(
-          weekStartDate,
-          data,
-          schedulingStrategy,
-          schedule.id
-        );
+        try {
+          const schedule = await this.dataFetcher.createSchedule(weekStartDate, userId);
+          scheduleId = schedule.id;
+          
+          const assignmentManager = new ShiftAssignmentManager(requirementsManager);
+          const schedulingStrategy = new SchedulingStrategy(assignmentManager, requirementsManager);
+          
+          const weekSuccess = await this.generateWeeklySchedule(
+            weekStartDate,
+            data,
+            schedulingStrategy,
+            schedule.id
+          );
 
-        if (weekSuccess) {
-          console.log('\n✅ Successfully generated schedule for the week!');
-          await this.dataFetcher.saveAssignments(assignmentManager.getAssignments());
-          validSchedule = true;
-          break;
-        } else {
-          console.log('\n❌ Week generation failed, cleaning up and retrying...');
+          if (weekSuccess) {
+            console.log('\n✅ Successfully generated schedule for the week!');
+            await this.dataFetcher.saveAssignments(assignmentManager.getAssignments());
+            validSchedule = true;
+            break;
+          } else {
+            console.log('\n❌ Week generation failed, cleaning up and retrying...');
+            if (scheduleId) {
+              await this.dataFetcher.deleteSchedule(scheduleId);
+            }
+          }
+        } catch (error) {
+          console.error('Error during schedule generation attempt:', error);
+          lastError = error as Error;
           if (scheduleId) {
             await this.dataFetcher.deleteSchedule(scheduleId);
           }
@@ -53,7 +71,10 @@ export class ScheduleGenerator {
       }
 
       if (!validSchedule) {
-        throw new Error(`Failed to generate valid schedule after ${SCHEDULING_CONSTANTS.MAX_SCHEDULING_ATTEMPTS} attempts`);
+        const errorMessage = lastError ? 
+          `Failed to generate valid schedule: ${lastError.message}` :
+          `Failed to generate valid schedule after ${SCHEDULING_CONSTANTS.MAX_SCHEDULING_ATTEMPTS} attempts`;
+        throw new Error(errorMessage);
       }
 
       return {

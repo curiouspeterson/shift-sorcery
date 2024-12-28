@@ -2,6 +2,7 @@ import { format } from 'https://esm.sh/date-fns@3.3.1';
 import { ShiftAssignmentManager } from './ShiftAssignmentManager.ts';
 import { ShiftRequirementsManager } from './ShiftRequirementsManager.ts';
 import { getShiftType } from './ShiftUtils.ts';
+import { SCHEDULING_CONSTANTS } from './constants.ts';
 
 export class SchedulingStrategy {
   constructor(
@@ -28,6 +29,13 @@ export class SchedulingStrategy {
       return false;
     }
 
+    // Sort employees by current weekly hours to prioritize those with fewer hours
+    availableEmployees.sort((a, b) => {
+      const hoursA = this.assignmentManager.getEmployeeWeeklyHours(a.id);
+      const hoursB = this.assignmentManager.getEmployeeWeeklyHours(b.id);
+      return hoursA - hoursB;
+    });
+
     // Process each shift type
     for (const shiftType of shiftTypes) {
       const success = await this.assignShiftType(
@@ -39,7 +47,10 @@ export class SchedulingStrategy {
         dayOfWeek
       );
       
-      if (!success) return false;
+      if (!success) {
+        console.log(`Failed to assign ${shiftType} shifts for ${currentDate}`);
+        return false;
+      }
     }
 
     return true;
@@ -51,6 +62,11 @@ export class SchedulingStrategy {
         a.employee_id === employee.id && 
         a.day_of_week === dayOfWeek
       );
+      
+      if (!hasAvailability) {
+        console.log(`Employee ${employee.first_name} has no availability for day ${dayOfWeek}`);
+      }
+      
       return hasAvailability;
     });
   }
@@ -75,17 +91,18 @@ export class SchedulingStrategy {
     const shiftsOfType = data.shifts.filter(s => getShiftType(s.start_time) === shiftType);
     let currentCount = 0;
     let attempts = 0;
-    const maxAttemptsPerShift = 15;
 
-    while (currentCount < required && attempts < maxAttemptsPerShift) {
+    while (currentCount < required && attempts < SCHEDULING_CONSTANTS.MAX_ATTEMPTS_PER_SHIFT) {
       attempts++;
       console.log(`\nAttempt ${attempts} for ${shiftType} (Current: ${currentCount}/${required})`);
 
+      // Get available employees who haven't been assigned today and sort by weekly hours
       const availableForShift = this.getAvailableEmployeesForShift(availableEmployees);
       
       if (availableForShift.length === 0) {
         console.log(`No more available employees for ${shiftType}`);
-        break;
+        // If we have at least some staff assigned, consider it a partial success
+        return currentCount > 0;
       }
 
       const assigned = await this.tryAssignEmployees(
@@ -98,9 +115,11 @@ export class SchedulingStrategy {
 
       if (assigned) {
         currentCount++;
-      } else if (currentCount < required) {
-        console.log(`Failed to meet requirements for ${shiftType}: ${currentCount}/${required}`);
-        return false;
+        console.log(`Successfully assigned shift (${currentCount}/${required})`);
+      } else if (attempts >= SCHEDULING_CONSTANTS.MAX_ATTEMPTS_PER_SHIFT) {
+        console.log(`Max attempts reached for ${shiftType}`);
+        // If we have at least 75% of required staff, consider it acceptable
+        return currentCount >= Math.ceil(required * 0.75);
       }
     }
 
@@ -139,7 +158,7 @@ export class SchedulingStrategy {
           dayOfWeek
         )) {
           this.assignmentManager.assignShift(scheduleId, employee, shift, currentDate);
-          console.log(`✅ Assigned ${employee.first_name} to shift`);
+          console.log(`✅ Assigned ${employee.first_name} to ${shift.name}`);
           return true;
         }
       }
