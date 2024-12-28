@@ -1,26 +1,49 @@
 import { useEffect, useState } from "react";
 import { AlertCircle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 export default function StatusView() {
   const [statusContent, setStatusContent] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
 
+  const fetchStatus = async () => {
+    try {
+      const response = await fetch("/STATUS.md");
+      if (!response.ok) {
+        throw new Error("Failed to load status file");
+      }
+      const content = await response.text();
+      setStatusContent(content);
+    } catch (err) {
+      console.error("Error loading status:", err);
+      setError("Failed to load application status");
+    }
+  };
+
   useEffect(() => {
-    fetch("/STATUS.md")
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error("Failed to load status file");
+    fetchStatus();
+
+    // Subscribe to real-time updates
+    const channel = supabase
+      .channel('public:status_updates')
+      .on(
+        'broadcast',
+        { event: 'status_update' },
+        (payload) => {
+          console.log('Received status update:', payload);
+          fetchStatus();
+          toast.info("Status page updated", {
+            description: "The application status has been updated."
+          });
         }
-        return response.text();
-      })
-      .then((content) => {
-        setStatusContent(content);
-      })
-      .catch((err) => {
-        console.error("Error loading status:", err);
-        setError("Failed to load application status");
-      });
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   if (error) {
