@@ -4,20 +4,11 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 import { DashboardSidebar } from "@/components/DashboardSidebar";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { clearAuthData } from "@/utils/auth";
 
 export const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
-
-  const clearAuthData = async () => {
-    // Clear all Supabase-related items from localStorage
-    Object.keys(localStorage).forEach(key => {
-      if (key.startsWith('sb-')) {
-        localStorage.removeItem(key);
-      }
-    });
-    await supabase.auth.signOut();
-  };
 
   useEffect(() => {
     const checkAuth = async () => {
