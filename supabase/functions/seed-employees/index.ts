@@ -6,6 +6,21 @@ const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
 const supabase = createClient(supabaseUrl, serviceRoleKey)
 
+// Common first names and last names for more realistic test data
+const firstNames = [
+  'James', 'John', 'Robert', 'Michael', 'William',
+  'Mary', 'Patricia', 'Jennifer', 'Linda', 'Elizabeth',
+  'David', 'Richard', 'Joseph', 'Thomas', 'Charles',
+  'Sarah', 'Jessica', 'Susan', 'Margaret', 'Karen'
+]
+
+const lastNames = [
+  'Smith', 'Johnson', 'Williams', 'Brown', 'Jones',
+  'Garcia', 'Miller', 'Davis', 'Rodriguez', 'Martinez',
+  'Anderson', 'Taylor', 'Thomas', 'Moore', 'Jackson',
+  'Martin', 'Lee', 'Thompson', 'White', 'Harris'
+]
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -28,11 +43,11 @@ Deno.serve(async (req) => {
     console.log(`Found ${existingUsers.size} existing test users`)
 
     // Create new users
-    for (let i = 1; i <= 20; i++) {
-      const email = `employee${i}@example.com`
-      const firstName = `Test${i}`
-      const lastName = `Employee${i}`
-      const role = i <= 5 ? 'manager' : 'employee'
+    for (let i = 0; i < 20; i++) {
+      const firstName = firstNames[i]
+      const lastName = lastNames[i]
+      const email = `${firstName.toLowerCase()}.${lastName.toLowerCase()}@example.com`
+      const role = i < 5 ? 'manager' : 'employee'
 
       try {
         const { data: { user }, error: createUserError } = await supabase.auth.admin.createUser({
@@ -70,19 +85,13 @@ Deno.serve(async (req) => {
         message: `Successfully processed 20 employees. Created ${employees.length} new users.`,
         created: employees.length 
       }),
-      { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200,
-      },
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (error) {
     console.error('Error in seed-employees function:', error)
     return new Response(
       JSON.stringify({ error: error.message }),
-      { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 400,
-      },
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
     )
   }
 })
