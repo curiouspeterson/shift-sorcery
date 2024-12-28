@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { addDays, format } from 'https://esm.sh/date-fns@2.30.0'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -63,16 +64,31 @@ serve(async (req) => {
     if (shiftsError) throw shiftsError
     console.log(`Fetched ${shifts.length} shifts`)
 
-    // Create basic assignments (one shift per employee for testing)
+    // Create assignments for the week
     const assignments = []
-    for (const employee of employees) {
+    const startDate = new Date(weekStartDate)
+
+    // For each day of the week
+    for (let i = 0; i < 7; i++) {
+      const currentDate = format(addDays(startDate, i), 'yyyy-MM-dd')
+      const dailyAssignments = new Set() // Track assigned employees for the day
+
+      // Distribute shifts among employees
       for (const shift of shifts) {
-        assignments.push({
-          schedule_id: schedule.id,
-          employee_id: employee.id,
-          shift_id: shift.id,
-          date: weekStartDate
-        })
+        // Find an unassigned employee for this day
+        const availableEmployee = employees.find(employee => 
+          !dailyAssignments.has(employee.id)
+        )
+
+        if (availableEmployee) {
+          assignments.push({
+            schedule_id: schedule.id,
+            employee_id: availableEmployee.id,
+            shift_id: shift.id,
+            date: currentDate
+          })
+          dailyAssignments.add(availableEmployee.id)
+        }
       }
     }
 
