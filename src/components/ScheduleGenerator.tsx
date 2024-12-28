@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, startOfWeek, addWeeks, subWeeks } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { ScheduleCalendar } from "./schedule/ScheduleCalendar";
@@ -7,10 +7,12 @@ import { ScheduleControls } from "./schedule/ScheduleControls";
 import { Button } from "./ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
+import { toast } from "sonner";
 
 export function ScheduleGenerator() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [userId, setUserId] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     const fetchUserId = async () => {
@@ -30,7 +32,7 @@ export function ScheduleGenerator() {
       
       if (!user) return null;
 
-      const { data: schedule } = await supabase
+      const { data: schedule, error } = await supabase
         .from("schedules")
         .select(`
           *,
@@ -43,16 +45,42 @@ export function ScheduleGenerator() {
         .eq("week_start_date", format(weekStart, "yyyy-MM-dd"))
         .maybeSingle();
 
+      if (error) {
+        toast.error("Error fetching schedule", {
+          description: error.message
+        });
+        return null;
+      }
+
       return schedule;
-    }
+    },
+    staleTime: 0, // Consider data immediately stale
+    cacheTime: 0  // Don't cache the data
   });
 
   const handlePreviousWeek = () => {
     setSelectedDate(subWeeks(selectedDate, 1));
+    // Invalidate queries for the new week
+    queryClient.invalidateQueries({
+      queryKey: ["schedule", format(subWeeks(selectedDate, 1), "yyyy-MM-dd")]
+    });
   };
 
   const handleNextWeek = () => {
     setSelectedDate(addWeeks(selectedDate, 1));
+    // Invalidate queries for the new week
+    queryClient.invalidateQueries({
+      queryKey: ["schedule", format(addWeeks(selectedDate, 1), "yyyy-MM-dd")]
+    });
+  };
+
+  const handleScheduleGenerated = async () => {
+    // Invalidate the current week's data
+    await queryClient.invalidateQueries({
+      queryKey: ["schedule", format(selectedDate, "yyyy-MM-dd")]
+    });
+    // Force a refetch
+    await refetch();
   };
 
   if (!userId) return null;
@@ -82,7 +110,7 @@ export function ScheduleGenerator() {
           <ScheduleControls
             selectedDate={selectedDate}
             userId={userId}
-            onScheduleGenerated={refetch}
+            onScheduleGenerated={handleScheduleGenerated}
             scheduleData={scheduleData}
           />
         </CardContent>
