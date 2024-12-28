@@ -38,6 +38,7 @@ Deno.serve(async (req) => {
 
   try {
     const { weekStartDate, userId } = await req.json();
+    console.log('Generating schedule for week starting:', weekStartDate);
 
     // Create Supabase client
     const supabaseClient = createClient(
@@ -102,17 +103,22 @@ Deno.serve(async (req) => {
       return shiftStart <= reqEnd && shiftEnd >= reqStart;
     };
 
-    // Process each day of the week
     const assignments = [];
+    
+    // Process each day of the week
     for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
       const currentDate = format(addDays(parseISO(weekStartDate), dayOffset), 'yyyy-MM-dd');
       const dayOfWeek = new Date(currentDate).getDay();
+      console.log(`Processing day ${dayOfWeek} (${currentDate})`);
 
-      // Group shifts by coverage period
-      const periodAssignments = new Map<string, number>();
-      coverageReqs.forEach(req => {
-        periodAssignments.set(`${req.start_time}-${req.end_time}`, 0);
-      });
+      // Track coverage for each requirement
+      const coverageTracking = new Map(
+        coverageReqs.map(req => [`${req.start_time}-${req.end_time}`, {
+          requirement: req,
+          currentCount: 0,
+          minimumMet: false
+        }])
+      );
 
       // Get available employees for this day
       const availableEmployees = availability
@@ -122,22 +128,32 @@ Deno.serve(async (req) => {
           shiftId: a.shift_id,
         }));
 
-      // Shuffle available employees to randomize assignments
+      // Shuffle available employees to randomize assignments while maintaining fairness
       const shuffledEmployees = availableEmployees.sort(() => Math.random() - 0.5);
 
-      // Assign shifts ensuring coverage requirements are met
+      // First pass: Meet minimum requirements
       for (const emp of shuffledEmployees) {
+        // Skip if employee already assigned for this day
+        if (assignments.some(a => 
+          a.employee_id === emp.employeeId && 
+          a.date === currentDate
+        )) {
+          continue;
+        }
+
         const shift = shifts.find(s => s.id === emp.shiftId);
         if (!shift) continue;
 
-        // Check which requirements this shift would help cover
-        const coverableReqs = coverageReqs.filter(req => 
-          shiftCoversPeriod(shift, req) && 
-          periodAssignments.get(`${req.start_time}-${req.end_time}`)! < req.min_employees
-        );
+        // Find requirements that this shift would help cover and aren't at minimum yet
+        const uncoveredReqs = coverageReqs.filter(req => {
+          const tracking = coverageTracking.get(`${req.start_time}-${req.end_time}`);
+          return shiftCoversPeriod(shift, req) && 
+                 tracking && 
+                 tracking.currentCount < req.min_employees;
+        });
 
-        // Only assign if this helps meet a requirement that needs more coverage
-        if (coverableReqs.length > 0) {
+        // Only assign if this helps meet an unfulfilled minimum requirement
+        if (uncoveredReqs.length > 0) {
           assignments.push({
             schedule_id: schedule.id,
             employee_id: emp.employeeId,
@@ -146,12 +162,24 @@ Deno.serve(async (req) => {
           });
 
           // Update coverage counts
-          coverableReqs.forEach(req => {
+          uncoveredReqs.forEach(req => {
             const key = `${req.start_time}-${req.end_time}`;
-            periodAssignments.set(key, (periodAssignments.get(key) || 0) + 1);
+            const tracking = coverageTracking.get(key);
+            if (tracking) {
+              tracking.currentCount++;
+              tracking.minimumMet = tracking.currentCount >= req.min_employees;
+            }
           });
+
+          console.log(`Assigned ${emp.employeeId} to shift ${shift.name} on ${currentDate}`);
         }
       }
+
+      // Log coverage status
+      console.log('Coverage status for', currentDate);
+      coverageTracking.forEach((value, key) => {
+        console.log(`${key}: ${value.currentCount}/${value.requirement.min_employees} (Minimum met: ${value.minimumMet})`);
+      });
     }
 
     // Insert all assignments
@@ -166,13 +194,17 @@ Deno.serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ message: 'Schedule generated successfully' }),
+      JSON.stringify({ 
+        message: 'Schedule generated successfully',
+        assignmentsCount: assignments.length 
+      }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200,
       }
     );
   } catch (error) {
+    console.error('Error generating schedule:', error);
     return new Response(
       JSON.stringify({ error: error.message }),
       {
