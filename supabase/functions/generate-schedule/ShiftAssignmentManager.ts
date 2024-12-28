@@ -3,28 +3,30 @@ import { getShiftType, getShiftDuration } from './ShiftUtils.ts';
 import { ShiftRequirementsManager } from './ShiftRequirementsManager.ts';
 import { TimeSlotManager } from './TimeSlotManager.ts';
 import { ShiftCounter } from './ShiftCounter.ts';
+import { WeeklyHoursTracker } from './WeeklyHoursTracker.ts';
+import { DailyAssignmentTracker } from './DailyAssignmentTracker.ts';
+import { AssignmentStorage } from './AssignmentStorage.ts';
 
 export class ShiftAssignmentManager {
-  private assignments: ShiftAssignment[] = [];
-  private employeesAssignedToday: Set<string> = new Set();
-  private employeeWeeklyHours: Map<string, number> = new Map();
   private timeSlotManager: TimeSlotManager;
   private shiftCounter: ShiftCounter;
-  private longShiftCount: number = 0;
-  private readonly MAX_LONG_SHIFTS = 3;
-  private readonly MAX_WEEKLY_HOURS = 40;
+  private weeklyHoursTracker: WeeklyHoursTracker;
+  private dailyTracker: DailyAssignmentTracker;
+  private assignmentStorage: AssignmentStorage;
 
   constructor(private requirementsManager: ShiftRequirementsManager) {
     this.timeSlotManager = new TimeSlotManager();
     this.shiftCounter = new ShiftCounter();
+    this.weeklyHoursTracker = new WeeklyHoursTracker();
+    this.dailyTracker = new DailyAssignmentTracker();
+    this.assignmentStorage = new AssignmentStorage();
   }
 
   public resetDailyCounts(): void {
     console.log('\n=== Resetting daily counts ===');
-    this.employeesAssignedToday.clear();
+    this.dailyTracker.reset();
     this.shiftCounter.reset();
     this.timeSlotManager.resetCounts();
-    this.longShiftCount = 0;
     console.log('Daily counts reset complete');
   }
 
@@ -52,18 +54,15 @@ export class ShiftAssignmentManager {
     console.log(`\nChecking time slot capacity for ${shiftType}:`);
     console.log(`Current count: ${this.shiftCounter.getCurrentCount(shiftType)}, Required: ${required}`);
 
-    // Strict enforcement: Never exceed minimum requirements
     if (increment && this.shiftCounter.getCurrentCount(shiftType) >= required) {
       console.log(`❌ Cannot assign: ${shiftType} already at minimum requirement (${this.shiftCounter.getCurrentCount(shiftType)}/${required})`);
       return false;
     }
 
-    // Check capacity constraints
     if (increment && !this.timeSlotManager.canAddToTimeSlots(timeSlots, required)) {
       return false;
     }
 
-    // Update time slot counts
     this.timeSlotManager.updateTimeSlots(timeSlots, increment);
 
     if (increment) {
@@ -71,12 +70,6 @@ export class ShiftAssignmentManager {
       this.shiftCounter.increment(shiftType);
     }
     return true;
-  }
-
-  private wouldExceedWeeklyHours(employee: Employee, shift: Shift): boolean {
-    const currentHours = this.employeeWeeklyHours.get(employee.id) || 0;
-    const shiftHours = getShiftDuration(shift);
-    return (currentHours + shiftHours) > this.MAX_WEEKLY_HOURS;
   }
 
   public canAssignShift(
@@ -88,41 +81,35 @@ export class ShiftAssignmentManager {
     const shiftType = getShiftType(shift.start_time);
     console.log(`\nChecking if ${employee.first_name} can be assigned to ${shiftType}:`);
 
-    // Check if employee is already assigned today
-    if (this.employeesAssignedToday.has(employee.id)) {
+    if (this.dailyTracker.isEmployeeAssignedToday(employee.id)) {
       console.log(`❌ ${employee.first_name} already assigned today`);
       return false;
     }
 
-    // Check weekly hours limit
-    if (this.wouldExceedWeeklyHours(employee, shift)) {
+    const shiftDuration = getShiftDuration(shift);
+    if (this.weeklyHoursTracker.wouldExceedWeeklyHours(employee.id, shiftDuration)) {
       console.log(`❌ ${employee.first_name} would exceed 40 weekly hours`);
       return false;
     }
 
-    // Check if we've met the minimum requirement for this shift type
     const required = this.requirementsManager.getRequiredStaffForShiftType(shiftType);
     if (this.shiftCounter.getCurrentCount(shiftType) >= required) {
       console.log(`❌ Already at minimum requirement (${required}) for ${shiftType}`);
       return false;
     }
 
-    // Check time slot availability
     if (!this.updateTimeSlotCounts(shift, true)) {
       console.log(`❌ Time slot constraints not met for ${shiftType}`);
       this.updateTimeSlotCounts(shift, false);
       return false;
     }
 
-    // Check shift duration constraints
-    const shiftDuration = getShiftDuration(shift);
-    if (shiftDuration > 8 && this.longShiftCount >= this.MAX_LONG_SHIFTS) {
-      console.log(`❌ Maximum long shifts (${this.MAX_LONG_SHIFTS}) reached`);
+    if (shiftDuration > 8 && !this.dailyTracker.canAddLongShift()) {
+      console.log(`❌ Maximum long shifts reached`);
       this.updateTimeSlotCounts(shift, false);
       return false;
     }
 
-    // Check employee availability
     const hasAvailability = availability.some(a => 
       a.employee_id === employee.id && 
       a.day_of_week === dayOfWeek &&
@@ -148,34 +135,28 @@ export class ShiftAssignmentManager {
     const shiftType = getShiftType(shift.start_time);
     const shiftDuration = getShiftDuration(shift);
 
-    // Update weekly hours
-    const currentHours = this.employeeWeeklyHours.get(employee.id) || 0;
-    this.employeeWeeklyHours.set(employee.id, currentHours + shiftDuration);
-
-    this.assignments.push({
+    this.weeklyHoursTracker.addHours(employee.id, shiftDuration);
+    
+    this.assignmentStorage.addAssignment({
       schedule_id: scheduleId,
       employee_id: employee.id,
       shift_id: shift.id,
       date: date
     });
 
-    this.employeesAssignedToday.add(employee.id);
-    
-    if (shiftDuration > 8) {
-      this.longShiftCount++;
-    }
+    this.dailyTracker.addAssignment(employee.id, shiftDuration > 8);
 
     console.log(`\n=== Assignment details for ${employee.first_name} ===`);
     console.log(`- Shift type: ${shiftType}`);
     console.log(`- Time: ${shift.start_time} - ${shift.end_time}`);
     console.log(`- Duration: ${shiftDuration} hours`);
-    console.log(`- Weekly hours: ${this.employeeWeeklyHours.get(employee.id)}`);
+    console.log(`- Weekly hours: ${this.weeklyHoursTracker.getCurrentHours(employee.id)}`);
     console.log(`- Current ${shiftType} count: ${this.shiftCounter.getCurrentCount(shiftType)}/${this.requirementsManager.getRequiredStaffForShiftType(shiftType)}`);
-    console.log(`- Long shifts assigned: ${this.longShiftCount}/${this.MAX_LONG_SHIFTS}`);
+    console.log(`- Long shifts assigned: ${this.dailyTracker.getCurrentLongShiftCount()}`);
   }
 
   public getAssignments(): ShiftAssignment[] {
-    return [...this.assignments];
+    return this.assignmentStorage.getAssignments();
   }
 
   public getCurrentCounts(): Record<string, number> {
