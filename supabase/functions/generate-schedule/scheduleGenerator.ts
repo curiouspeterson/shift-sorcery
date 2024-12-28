@@ -8,6 +8,10 @@ export class ScheduleGenerator {
   private supabase: any;
   private assignments: Assignment[] = [];
   private employeesAssignedToday: Set<string> = new Set();
+  private longShiftCount: number = 0;
+  private maxLongShiftsPerDay: number = 3; // Limit long shifts to ensure staff for other periods
+  private maxEarlyShiftsPerDay: number = 6; // Match requirements from image
+  private earlyShiftCount: number = 0;
 
   constructor() {
     this.supabase = createClient(
@@ -61,9 +65,15 @@ export class ScheduleGenerator {
     shifts: Shift[],
     availability: Availability[]
   ): boolean {
-    // Check if employee has already been assigned a long shift today
+    // For early shifts, check count
+    if (shiftType === "Day Shift Early" && this.earlyShiftCount >= this.maxEarlyShiftsPerDay) {
+      console.log(`Max early shifts (${this.maxEarlyShiftsPerDay}) reached for the day`);
+      return false;
+    }
+
+    // Check if employee has already been assigned today
     if (this.employeesAssignedToday.has(employeeId)) {
-      console.log(`${employeeId} already assigned today - reserving for other shifts`);
+      console.log(`${employeeId} already assigned today`);
       return false;
     }
 
@@ -100,13 +110,18 @@ export class ScheduleGenerator {
     const shiftDuration = getShiftDuration(shift);
     const shiftType = getShiftType(shift.start_time);
 
-    // For long shifts (>8 hours), check if we've already assigned too many
+    // Check shift-specific limits
+    if (shiftType === "Day Shift Early") {
+      if (this.earlyShiftCount >= this.maxEarlyShiftsPerDay) {
+        console.log(`Skipping early shift - already at max (${this.maxEarlyShiftsPerDay})`);
+        return false;
+      }
+    }
+
+    // For long shifts, check against daily limit
     if (shiftDuration > 8) {
-      const longShiftCount = Array.from(this.employeesAssignedToday).length;
-      const maxLongShifts = 5; // Limit long shifts to ensure staff for other periods
-      
-      if (longShiftCount >= maxLongShifts) {
-        console.log(`Skipping long shift assignment - already at max (${maxLongShifts})`);
+      if (this.longShiftCount >= this.maxLongShiftsPerDay) {
+        console.log(`Skipping long shift - already at max (${this.maxLongShiftsPerDay})`);
         return false;
       }
     }
@@ -120,12 +135,17 @@ export class ScheduleGenerator {
         date: currentDate,
       });
 
-      // Track employees assigned to long shifts
+      // Update counters
+      this.employeesAssignedToday.add(employeeId);
       if (shiftDuration > 8) {
-        this.employeesAssignedToday.add(employeeId);
+        this.longShiftCount++;
+      }
+      if (shiftType === "Day Shift Early") {
+        this.earlyShiftCount++;
       }
 
       console.log(`Successfully assigned ${employeeId} to ${shift.name} (${shift.start_time} - ${shift.end_time}) on ${currentDate}`);
+      console.log(`Long shifts: ${this.longShiftCount}/${this.maxLongShiftsPerDay}, Early shifts: ${this.earlyShiftCount}/${this.maxEarlyShiftsPerDay}`);
       return true;
     }
 
@@ -142,10 +162,12 @@ export class ScheduleGenerator {
       const currentDate = format(addDays(parseISO(weekStartDate), dayOffset), 'yyyy-MM-dd');
       console.log(`\nProcessing ${format(new Date(currentDate), 'EEEE, MMM d')}`);
       
-      // Reset the daily employee tracking
+      // Reset daily counters
       this.employeesAssignedToday.clear();
+      this.longShiftCount = 0;
+      this.earlyShiftCount = 0;
 
-      // Process shift types in priority order (Graveyard first, then early, etc)
+      // Process shift types in priority order
       const shiftTypes = ["Graveyard", "Day Shift Early", "Day Shift", "Swing Shift"];
       
       for (const shiftType of shiftTypes) {
@@ -156,7 +178,7 @@ export class ScheduleGenerator {
         const shiftsOfType = shifts.filter(s => getShiftType(s.start_time) === shiftType);
         console.log(`Found ${shiftsOfType.length} ${shiftType} shifts`);
 
-        // Sort shifts by duration (shorter shifts first to ensure better distribution)
+        // Sort shifts by duration (shorter shifts first)
         shiftsOfType.sort((a, b) => getShiftDuration(a) - getShiftDuration(b));
 
         // Get available employees for this shift type
