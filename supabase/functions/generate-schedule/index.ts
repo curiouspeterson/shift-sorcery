@@ -14,37 +14,17 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Clone the request before reading the body
-    const reqClone = req.clone()
-    const { weekStartDate, userId } = await reqClone.json()
+    const { weekStartDate, userId } = await req.json()
     
     if (!weekStartDate || !userId) {
       throw new Error('weekStartDate and userId are required')
     }
 
-    const startDate = new Date(weekStartDate)
-    const endDate = addDays(startDate, 6)
-
-    // Get all employees
-    const { data: employees, error: employeesError } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('role', 'employee')
-
-    if (employeesError) throw employeesError
-
-    // Get coverage requirements
-    const { data: coverage, error: coverageError } = await supabase
-      .from('coverage_requirements')
-      .select('*')
-
-    if (coverageError) throw coverageError
-
     // Create new schedule
     const { data: schedule, error: scheduleError } = await supabase
       .from('schedules')
       .insert({
-        week_start_date: format(startDate, 'yyyy-MM-dd'),
+        week_start_date: weekStartDate,
         status: 'draft',
         created_by: userId,
       })
@@ -53,47 +33,59 @@ Deno.serve(async (req) => {
 
     if (scheduleError) throw scheduleError
 
-    // Generate and insert shifts
-    const shifts = coverage.flatMap(req => 
-      Array.from({ length: 7 }, (_, day) => {
-        const date = addDays(startDate, day)
-        return employees
-          .slice(0, req.min_employees)
-          .map(emp => ({
-            schedule_id: schedule.id,
-            employee_id: emp.id,
-            date: format(date, 'yyyy-MM-dd'),
-            shift_id: req.id,
-          }))
-      }).flat()
-    )
+    // Get all employees
+    const { data: employees } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('role', 'employee')
 
-    if (shifts.length > 0) {
-      const { error: shiftsError } = await supabase
-        .from('schedule_assignments')
-        .insert(shifts)
-
-      if (shiftsError) throw shiftsError
+    if (!employees?.length) {
+      throw new Error('No employees found')
     }
 
+    // Get shifts
+    const { data: shifts } = await supabase
+      .from('shifts')
+      .select('*')
+
+    if (!shifts?.length) {
+      throw new Error('No shifts defined')
+    }
+
+    // Simple assignment: distribute shifts among employees
+    const assignments = []
+    for (let i = 0; i < 7; i++) {
+      const date = format(addDays(new Date(weekStartDate), i), 'yyyy-MM-dd')
+      
+      for (const shift of shifts) {
+        // Assign each shift to the first available employee
+        // In a real app, you'd want more sophisticated logic here
+        const employee = employees[Math.floor(Math.random() * employees.length)]
+        
+        assignments.push({
+          schedule_id: schedule.id,
+          employee_id: employee.id,
+          shift_id: shift.id,
+          date: date,
+        })
+      }
+    }
+
+    // Insert assignments
+    const { error: assignmentError } = await supabase
+      .from('schedule_assignments')
+      .insert(assignments)
+
+    if (assignmentError) throw assignmentError
+
     return new Response(
-      JSON.stringify({ 
-        scheduleId: schedule.id,
-        message: 'Schedule generated successfully' 
-      }),
-      { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200,
-      },
+      JSON.stringify({ message: 'Schedule generated successfully' }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (error) {
-    console.error('Error generating schedule:', error)
     return new Response(
       JSON.stringify({ error: error.message }),
-      { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 400,
-      },
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
     )
   }
 })

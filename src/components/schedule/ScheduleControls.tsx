@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { generateSchedule } from "@/utils/schedulingEngine";
+import { generateScheduleForWeek } from "@/utils/schedulingEngine";
 import { publishSchedule } from "@/utils/scheduleUtils";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -9,18 +9,20 @@ interface ScheduleControlsProps {
   selectedDate: Date;
   userId: string;
   onScheduleGenerated: () => void;
+  scheduleData?: any;
 }
 
 export function ScheduleControls({
   selectedDate,
   userId,
   onScheduleGenerated,
+  scheduleData,
 }: ScheduleControlsProps) {
   const queryClient = useQueryClient();
 
   const handleGenerateSchedule = async () => {
     try {
-      await generateSchedule(selectedDate, userId);
+      await generateScheduleForWeek(selectedDate, userId);
       toast.success("Schedule generated successfully");
       onScheduleGenerated();
     } catch (error: any) {
@@ -28,10 +30,15 @@ export function ScheduleControls({
     }
   };
 
-  const handlePublishSchedule = async (scheduleId: string) => {
+  const handlePublishSchedule = async () => {
+    if (!scheduleData?.id) {
+      toast.error("No schedule to publish");
+      return;
+    }
+
     try {
-      await publishSchedule(scheduleId);
-      queryClient.invalidateQueries({ queryKey: ["schedules"] });
+      await publishSchedule(scheduleData.id);
+      queryClient.invalidateQueries({ queryKey: ["schedule"] });
       toast.success("Schedule published successfully");
     } catch (error: any) {
       toast.error("Failed to publish schedule: " + error.message);
@@ -47,6 +54,11 @@ export function ScheduleControls({
         <Button onClick={handleGenerateSchedule}>
           Generate Schedule for Selected Week
         </Button>
+        {scheduleData?.status === 'draft' && (
+          <Button onClick={handlePublishSchedule} variant="secondary">
+            Publish Schedule
+          </Button>
+        )}
       </CardContent>
     </Card>
   );

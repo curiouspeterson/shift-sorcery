@@ -9,7 +9,6 @@ export function ScheduleGenerator() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [userId, setUserId] = useState<string | null>(null);
 
-  // Fetch user ID on component mount
   useEffect(() => {
     const fetchUserId = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -53,6 +52,7 @@ export function ScheduleGenerator() {
         selectedDate={selectedDate}
         userId={userId}
         onScheduleGenerated={refetch}
+        scheduleData={scheduleData}
       />
       <ScheduleCalendar
         selectedDate={selectedDate}

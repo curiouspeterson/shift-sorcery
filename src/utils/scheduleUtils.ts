@@ -69,13 +69,6 @@ export const createSchedule = async (weekStartDate: string, createdBy: string) =
   return data;
 };
 
-export const insertScheduleAssignments = async (assignments: any[]) => {
-  const { error } = await supabase
-    .from("schedule_assignments")
-    .insert(assignments);
-  if (error) throw error;
-};
-
 export const publishSchedule = async (scheduleId: string) => {
   const { error } = await supabase
     .from("schedules")
