@@ -16,3 +16,12 @@ export async function generateScheduleForWeek(selectedDate: Date, userId: string
     throw error;
   }
 }
+
+export async function publishSchedule(scheduleId: string) {
+  const { error } = await supabase
+    .from('schedules')
+    .update({ status: 'published' })
+    .eq('id', scheduleId);
+  
+  if (error) throw error;
+}

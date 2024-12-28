@@ -58,7 +58,7 @@ Deno.serve(async (req) => {
       const date = format(addDays(new Date(weekStartDate), i), 'yyyy-MM-dd')
       
       for (const shift of shifts) {
-        // Assign each shift to the first available employee
+        // Assign each shift to a random employee
         // In a real app, you'd want more sophisticated logic here
         const employee = employees[Math.floor(Math.random() * employees.length)]
         
