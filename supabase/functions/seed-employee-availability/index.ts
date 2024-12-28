@@ -6,6 +6,30 @@ const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
 const supabase = createClient(supabaseUrl, serviceRoleKey)
 
+// Shift patterns for different types of schedules
+const SHIFT_PATTERNS = {
+  EARLY: {
+    days: 4,
+    preferredShiftDuration: 10,
+    startHourRange: [4, 6]
+  },
+  DAY: {
+    days: 4,
+    preferredShiftDuration: 8,
+    startHourRange: [7, 9]
+  },
+  SWING: {
+    days: 4,
+    preferredShiftDuration: 8,
+    startHourRange: [14, 16]
+  },
+  GRAVEYARD: {
+    days: 3,
+    preferredShiftDuration: 12,
+    startHourRange: [20, 22]
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -18,6 +42,7 @@ Deno.serve(async (req) => {
     const { data: employees, error: employeesError } = await supabase
       .from('profiles')
       .select('id')
+      .eq('role', 'employee')
 
     if (employeesError) {
       console.error('Error fetching employees:', employeesError)
@@ -59,76 +84,53 @@ Deno.serve(async (req) => {
 
     console.log('Cleared existing availability entries')
 
-    // Create availability entries for each employee
+    // Group shifts by duration
+    const shiftsByDuration = allShifts.reduce((acc, shift) => {
+      const startHour = parseInt(shift.start_time.split(':')[0])
+      const endHour = parseInt(shift.end_time.split(':')[0])
+      const duration = (endHour < startHour ? endHour + 24 : endHour) - startHour
+      
+      if (!acc[duration]) {
+        acc[duration] = []
+      }
+      acc[duration].push(shift)
+      return acc
+    }, {})
+
+    // Create availability entries
     const availabilityEntries = []
-
-    for (const employee of employees) {
-      // Randomly choose between 4x10 or 3x12+4 schedule pattern
-      const usesTenHourShifts = Math.random() < 0.5
+    const patterns = Object.values(SHIFT_PATTERNS)
+    
+    // Distribute employees evenly across shift patterns
+    employees.forEach((employee, index) => {
+      const pattern = patterns[index % patterns.length]
+      const startDay = Math.floor(Math.random() * (7 - pattern.days))
       
-      // Randomly select a shift that will be used for all days
-      let selectedShift;
-      if (usesTenHourShifts) {
-        // Filter for 10-hour shifts
-        const tenHourShifts = allShifts.filter(shift => {
-          const startHour = parseInt(shift.start_time.split(':')[0]);
-          const endHour = parseInt(shift.end_time.split(':')[0]);
-          const duration = (endHour < startHour ? endHour + 24 : endHour) - startHour;
-          return duration === 10;
-        });
-        selectedShift = tenHourShifts[Math.floor(Math.random() * tenHourShifts.length)];
-      } else {
-        // Filter for 12-hour shifts
-        const twelveHourShifts = allShifts.filter(shift => {
-          const startHour = parseInt(shift.start_time.split(':')[0]);
-          const endHour = parseInt(shift.end_time.split(':')[0]);
-          const duration = (endHour < startHour ? endHour + 24 : endHour) - startHour;
-          return duration === 12;
-        });
-        selectedShift = twelveHourShifts[Math.floor(Math.random() * twelveHourShifts.length)];
+      // Find appropriate shifts for this pattern
+      const appropriateShifts = allShifts.filter(shift => {
+        const startHour = parseInt(shift.start_time.split(':')[0])
+        return startHour >= pattern.startHourRange[0] && 
+               startHour <= pattern.startHourRange[1]
+      })
+
+      if (appropriateShifts.length === 0) {
+        console.log(`No appropriate shifts found for pattern starting at ${pattern.startHourRange[0]}-${pattern.startHourRange[1]}`)
+        return
       }
 
-      if (!selectedShift) {
-        console.log('No suitable shifts found for pattern, skipping employee');
-        continue;
-      }
+      const selectedShift = appropriateShifts[Math.floor(Math.random() * appropriateShifts.length)]
 
-      // Randomly select consecutive days
-      const numDays = usesTenHourShifts ? 4 : 3; // 4 days for 10-hour shifts, 3 days for 12-hour shifts
-      const startDay = Math.floor(Math.random() * (7 - numDays)); // Ensure consecutive days fit within week
-      
-      // Add availability for consecutive days with the same shift
-      for (let i = 0; i < numDays; i++) {
+      // Add availability for consecutive days based on pattern
+      for (let i = 0; i < pattern.days; i++) {
         availabilityEntries.push({
           employee_id: employee.id,
-          day_of_week: startDay + i,
+          day_of_week: (startDay + i) % 7,
           shift_id: selectedShift.id,
           start_time: selectedShift.start_time,
           end_time: selectedShift.end_time,
-        });
+        })
       }
-
-      // If using 12-hour shifts, add one 4-hour shift
-      if (!usesTenHourShifts) {
-        const fourHourShifts = allShifts.filter(shift => {
-          const startHour = parseInt(shift.start_time.split(':')[0]);
-          const endHour = parseInt(shift.end_time.split(':')[0]);
-          const duration = (endHour < startHour ? endHour + 24 : endHour) - startHour;
-          return duration === 4;
-        });
-
-        if (fourHourShifts.length > 0) {
-          const fourHourShift = fourHourShifts[Math.floor(Math.random() * fourHourShifts.length)];
-          availabilityEntries.push({
-            employee_id: employee.id,
-            day_of_week: (startDay + 3) % 7, // Add 4-hour shift after the 12-hour shifts
-            shift_id: fourHourShift.id,
-            start_time: fourHourShift.start_time,
-            end_time: fourHourShift.end_time,
-          });
-        }
-      }
-    }
+    })
 
     console.log(`Preparing to insert ${availabilityEntries.length} availability entries`)
 
