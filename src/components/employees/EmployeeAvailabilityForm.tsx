@@ -29,6 +29,11 @@ export function EmployeeAvailabilityForm({ employeeId, availability }: EmployeeA
   const { data: shifts } = useQuery({
     queryKey: ['shifts'],
     queryFn: async () => {
+      const { data: session } = await supabase.auth.getSession();
+      if (!session.session) {
+        throw new Error("No session found");
+      }
+
       const { data, error } = await supabase
         .from('shifts')
         .select('*')
@@ -73,7 +78,8 @@ export function EmployeeAvailabilityForm({ employeeId, availability }: EmployeeA
       setSelectedShiftId(null);
       queryClient.invalidateQueries({ queryKey: ['availability'] });
       toast.success("Availability updated successfully");
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Error saving availability:', error);
       toast.error("Failed to update availability");
     }
   };
