@@ -6,19 +6,23 @@ const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
 const supabase = createClient(supabaseUrl, serviceRoleKey)
 
-// Common first names and last names for more realistic test data
+// Extended list of first names and last names for more realistic test data
 const firstNames = [
-  'James', 'John', 'Robert', 'Michael', 'William',
-  'Mary', 'Patricia', 'Jennifer', 'Linda', 'Elizabeth',
-  'David', 'Richard', 'Joseph', 'Thomas', 'Charles',
-  'Sarah', 'Jessica', 'Susan', 'Margaret', 'Karen'
+  'James', 'John', 'Robert', 'Michael', 'William', 'David', 'Richard', 'Joseph', 'Thomas', 'Charles',
+  'Mary', 'Patricia', 'Jennifer', 'Linda', 'Elizabeth', 'Barbara', 'Susan', 'Jessica', 'Sarah', 'Karen',
+  'Christopher', 'Daniel', 'Paul', 'Mark', 'Donald', 'George', 'Kenneth', 'Steven', 'Edward', 'Brian',
+  'Margaret', 'Lisa', 'Nancy', 'Betty', 'Sandra', 'Ashley', 'Dorothy', 'Kimberly', 'Emily', 'Donna',
+  'Anthony', 'Kevin', 'Jason', 'Matthew', 'Gary', 'Timothy', 'Jose', 'Larry', 'Jeffrey', 'Frank',
+  'Michelle', 'Carol', 'Amanda', 'Melissa', 'Deborah', 'Stephanie', 'Rebecca', 'Laura', 'Helen', 'Sharon'
 ]
 
 const lastNames = [
-  'Smith', 'Johnson', 'Williams', 'Brown', 'Jones',
-  'Garcia', 'Miller', 'Davis', 'Rodriguez', 'Martinez',
-  'Anderson', 'Taylor', 'Thomas', 'Moore', 'Jackson',
-  'Martin', 'Lee', 'Thompson', 'White', 'Harris'
+  'Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis', 'Rodriguez', 'Martinez',
+  'Anderson', 'Taylor', 'Thomas', 'Moore', 'Jackson', 'Martin', 'Lee', 'Thompson', 'White', 'Harris',
+  'Clark', 'Lewis', 'Robinson', 'Walker', 'Hall', 'Young', 'Allen', 'King', 'Wright', 'Scott',
+  'Green', 'Baker', 'Adams', 'Nelson', 'Hill', 'Campbell', 'Mitchell', 'Roberts', 'Carter', 'Phillips',
+  'Evans', 'Turner', 'Torres', 'Parker', 'Collins', 'Edwards', 'Stewart', 'Flores', 'Morris', 'Murphy',
+  'Wilson', 'Cooper', 'Richardson', 'Cox', 'Howard', 'Ward', 'Torres', 'Peterson', 'Gray', 'James'
 ]
 
 Deno.serve(async (req) => {
@@ -42,12 +46,12 @@ Deno.serve(async (req) => {
 
     console.log(`Found ${existingUsers.size} existing test users`)
 
-    // Create new users
-    for (let i = 0; i < 20; i++) {
+    // Create 60 new users
+    for (let i = 0; i < 60; i++) {
       const firstName = firstNames[i]
       const lastName = lastNames[i]
       const email = `${firstName.toLowerCase()}.${lastName.toLowerCase()}@example.com`
-      const role = i < 5 ? 'manager' : 'employee'
+      const role = i < 15 ? 'manager' : 'employee' // First 15 users are managers, rest are employees
 
       try {
         const { data: { user }, error: createUserError } = await supabase.auth.admin.createUser({
@@ -82,7 +86,7 @@ Deno.serve(async (req) => {
 
     return new Response(
       JSON.stringify({ 
-        message: `Successfully processed 20 employees. Created ${employees.length} new users.`,
+        message: `Successfully processed 60 employees. Created ${employees.length} new users.`,
         created: employees.length 
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
