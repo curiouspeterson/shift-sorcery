@@ -23,7 +23,7 @@ Deno.serve(async (req) => {
   try {
     console.log('Starting to seed employee availability...')
 
-    // Get all employees
+    // First, get all employees
     const { data: employees, error: employeesError } = await supabase
       .from('profiles')
       .select('id')
@@ -38,6 +38,66 @@ Deno.serve(async (req) => {
     }
 
     console.log(`Found ${employees.length} employees`)
+
+    // Get or create default shifts for weekday and weekend
+    const { data: weekdayShift, error: weekdayShiftError } = await supabase
+      .from('shifts')
+      .select('*')
+      .eq('start_time', DEFAULT_WEEKDAY_START)
+      .eq('end_time', DEFAULT_WEEKDAY_END)
+      .single()
+
+    if (weekdayShiftError) {
+      console.log('Creating default weekday shift...')
+      const { data: newWeekdayShift, error: createWeekdayError } = await supabase
+        .from('shifts')
+        .insert({
+          name: 'Default Weekday',
+          start_time: DEFAULT_WEEKDAY_START,
+          end_time: DEFAULT_WEEKDAY_END,
+        })
+        .select()
+        .single()
+
+      if (createWeekdayError) throw createWeekdayError
+      console.log('Created weekday shift:', newWeekdayShift)
+    }
+
+    const { data: weekendShift, error: weekendShiftError } = await supabase
+      .from('shifts')
+      .select('*')
+      .eq('start_time', DEFAULT_WEEKEND_START)
+      .eq('end_time', DEFAULT_WEEKEND_END)
+      .single()
+
+    if (weekendShiftError) {
+      console.log('Creating default weekend shift...')
+      const { data: newWeekendShift, error: createWeekendError } = await supabase
+        .from('shifts')
+        .insert({
+          name: 'Default Weekend',
+          start_time: DEFAULT_WEEKEND_START,
+          end_time: DEFAULT_WEEKEND_END,
+        })
+        .select()
+        .single()
+
+      if (createWeekendError) throw createWeekendError
+      console.log('Created weekend shift:', newWeekendShift)
+    }
+
+    // Get the final shifts to use
+    const { data: shifts, error: shiftsError } = await supabase
+      .from('shifts')
+      .select('*')
+      .in('start_time', [DEFAULT_WEEKDAY_START, DEFAULT_WEEKEND_START])
+
+    if (shiftsError || !shifts || shifts.length < 2) {
+      throw new Error('Failed to get or create default shifts')
+    }
+
+    const weekdayShiftId = shifts.find(s => s.start_time === DEFAULT_WEEKDAY_START)?.id
+    const weekendShiftId = shifts.find(s => s.start_time === DEFAULT_WEEKEND_START)?.id
 
     // Delete all existing availability entries
     const { error: deleteError } = await supabase
@@ -57,6 +117,7 @@ Deno.serve(async (req) => {
       return Array.from({ length: 7 }, (_, i) => ({
         employee_id: employee.id,
         day_of_week: i,
+        shift_id: i > 4 ? weekendShiftId : weekdayShiftId,
         start_time: i > 4 ? DEFAULT_WEEKEND_START : DEFAULT_WEEKDAY_START,
         end_time: i > 4 ? DEFAULT_WEEKEND_END : DEFAULT_WEEKDAY_END,
       }))
