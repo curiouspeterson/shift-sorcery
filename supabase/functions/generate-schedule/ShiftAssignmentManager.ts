@@ -23,59 +23,16 @@ export class ShiftAssignmentManager {
     this.assignmentStorage = new AssignmentStorage();
   }
 
+  public getWeeklyHoursTracker(): WeeklyHoursTracker {
+    return this.weeklyHoursTracker;
+  }
+
   public getEmployeeWeeklyHours(employeeId: string): number {
     return this.weeklyHoursTracker.getCurrentHours(employeeId);
   }
 
   public isEmployeeAssignedToday(employeeId: string): boolean {
     return this.dailyTracker.isEmployeeAssignedToday(employeeId);
-  }
-
-  public canAssignShiftHours(employeeId: string, shift: Shift): boolean {
-    const shiftHours = getShiftDuration(shift);
-    const currentHours = this.weeklyHoursTracker.getCurrentHours(employeeId);
-    const totalHours = currentHours + shiftHours;
-    
-    if (totalHours > SCHEDULING_CONSTANTS.MAX_HOURS_PER_WEEK) {
-      console.log(`Would exceed max weekly hours: ${totalHours} > ${SCHEDULING_CONSTANTS.MAX_HOURS_PER_WEEK}`);
-      return false;
-    }
-    
-    return true;
-  }
-
-  public canAssignShift(
-    employee: Employee,
-    shift: Shift,
-    availability: Availability[],
-    dayOfWeek: number
-  ): boolean {
-    const shiftType = getShiftType(shift.start_time);
-    console.log(`\nChecking if ${employee.first_name} can be assigned to ${shiftType}:`);
-
-    if (this.dailyTracker.isEmployeeAssignedToday(employee.id)) {
-      console.log(`❌ ${employee.first_name} already assigned today`);
-      return false;
-    }
-
-    if (!this.canAssignShiftHours(employee.id, shift)) {
-      console.log(`❌ ${employee.first_name} would exceed weekly hours limit`);
-      return false;
-    }
-
-    const hasAvailability = availability.some(a => 
-      a.employee_id === employee.id && 
-      a.day_of_week === dayOfWeek &&
-      a.shift_id === shift.id
-    );
-
-    if (!hasAvailability) {
-      console.log(`❌ ${employee.first_name} not available for this shift`);
-      return false;
-    }
-
-    console.log(`✅ ${employee.first_name} can be assigned to ${shiftType}`);
-    return true;
   }
 
   public assignShift(

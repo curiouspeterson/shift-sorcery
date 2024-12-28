@@ -1,10 +1,11 @@
+import { SCHEDULING_CONSTANTS } from './constants.ts';
+
 export class WeeklyHoursTracker {
   private employeeWeeklyHours: Map<string, number> = new Map();
-  private readonly MAX_WEEKLY_HOURS = 40;
 
   public wouldExceedWeeklyHours(employeeId: string, shiftHours: number): boolean {
     const currentHours = this.employeeWeeklyHours.get(employeeId) || 0;
-    return (currentHours + shiftHours) > this.MAX_WEEKLY_HOURS;
+    return (currentHours + shiftHours) > SCHEDULING_CONSTANTS.MAX_HOURS_PER_WEEK;
   }
 
   public addHours(employeeId: string, hours: number): void {
@@ -18,5 +19,10 @@ export class WeeklyHoursTracker {
 
   public reset(): void {
     this.employeeWeeklyHours.clear();
+  }
+
+  public isUnderMinHours(employeeId: string): boolean {
+    const currentHours = this.getCurrentHours(employeeId);
+    return currentHours < SCHEDULING_CONSTANTS.MIN_HOURS_PER_WEEK;
   }
 }
