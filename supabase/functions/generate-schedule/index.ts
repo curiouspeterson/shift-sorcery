@@ -1,12 +1,13 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { corsHeaders } from "../_shared/cors.ts"
-import { ScheduleGenerator } from "./scheduleGenerator.ts"
 
-console.log("Loading generate-schedule function...")
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
 
 serve(async (req) => {
-  // Handle CORS
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
@@ -16,14 +17,7 @@ serve(async (req) => {
     console.log('Received request:', { weekStartDate, userId })
 
     if (!weekStartDate || !userId) {
-      console.error('Missing required parameters')
-      return new Response(
-        JSON.stringify({ error: 'Missing required parameters' }),
-        { 
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      )
+      throw new Error('Missing required parameters')
     }
 
     // Initialize Supabase client
@@ -31,36 +25,87 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
     
     if (!supabaseUrl || !supabaseKey) {
-      console.error('Missing Supabase configuration')
       throw new Error('Missing Supabase configuration')
     }
 
     const supabase = createClient(supabaseUrl, supabaseKey)
     console.log('Supabase client initialized')
 
-    // Initialize schedule generator with Supabase client
-    const generator = new ScheduleGenerator(supabase)
-    console.log('Schedule generator initialized')
+    // Create schedule record
+    const { data: schedule, error: scheduleError } = await supabase
+      .from('schedules')
+      .insert({
+        week_start_date: weekStartDate,
+        status: 'draft',
+        created_by: userId
+      })
+      .select()
+      .single()
 
-    // Generate schedule
-    const result = await generator.generateSchedule(weekStartDate, userId)
-    console.log('Schedule generation completed:', result)
+    if (scheduleError) throw scheduleError
+    console.log('Created schedule:', schedule)
+
+    // Fetch employees
+    const { data: employees, error: employeesError } = await supabase
+      .from('profiles')
+      .select('*')
+      .order('first_name')
+
+    if (employeesError) throw employeesError
+    console.log(`Fetched ${employees.length} employees`)
+
+    // Fetch shifts
+    const { data: shifts, error: shiftsError } = await supabase
+      .from('shifts')
+      .select('*')
+      .order('start_time')
+
+    if (shiftsError) throw shiftsError
+    console.log(`Fetched ${shifts.length} shifts`)
+
+    // Create basic assignments (one shift per employee for testing)
+    const assignments = []
+    for (const employee of employees) {
+      for (const shift of shifts) {
+        assignments.push({
+          schedule_id: schedule.id,
+          employee_id: employee.id,
+          shift_id: shift.id,
+          date: weekStartDate
+        })
+      }
+    }
+
+    // Save assignments
+    const { error: assignmentsError } = await supabase
+      .from('schedule_assignments')
+      .insert(assignments)
+
+    if (assignmentsError) throw assignmentsError
+    console.log(`Created ${assignments.length} assignments`)
 
     return new Response(
-      JSON.stringify(result),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({
+        success: true,
+        scheduleId: schedule.id,
+        assignmentsCount: assignments.length
+      }),
+      { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200
+      }
     )
 
   } catch (error) {
-    console.error('Error in generate-schedule function:', error)
+    console.error('Error:', error)
     return new Response(
       JSON.stringify({ 
         error: error.message,
         details: error.toString()
       }),
       { 
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400
       }
     )
   }
