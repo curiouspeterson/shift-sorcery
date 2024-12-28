@@ -19,6 +19,7 @@ export class ShiftAssignmentManager {
   constructor(private requirementsManager: ShiftRequirementsManager) {}
 
   public resetDailyCounts(): void {
+    console.log('\n=== Resetting daily counts ===');
     this.employeesAssignedToday.clear();
     this.shiftCounts = {
       'Day Shift Early': 0,
@@ -28,6 +29,7 @@ export class ShiftAssignmentManager {
     };
     this.employeesPerTimeSlot.clear();
     this.longShiftCount = 0;
+    console.log('Daily counts reset complete');
   }
 
   private updateTimeSlotCounts(shift: Shift, increment: boolean = true): boolean {
@@ -79,6 +81,7 @@ export class ShiftAssignmentManager {
   ): boolean {
     // Check if employee is already assigned today
     if (this.employeesAssignedToday.has(employee.id)) {
+      console.log(`${employee.first_name} already assigned today`);
       return false;
     }
 
@@ -94,12 +97,14 @@ export class ShiftAssignmentManager {
 
     // Check if we've reached the maximum for this shift type
     if (this.shiftCounts[shiftType] >= required) {
+      console.log(`Maximum staff reached for ${shiftType}`);
       this.updateTimeSlotCounts(shift, false); // Rollback the count
       return false;
     }
 
     // Check if we can assign a long shift
     if (shiftDuration > 8 && this.longShiftCount >= this.MAX_LONG_SHIFTS) {
+      console.log(`Maximum long shifts (${this.MAX_LONG_SHIFTS}) reached`);
       this.updateTimeSlotCounts(shift, false); // Rollback the count
       return false;
     }
@@ -113,9 +118,10 @@ export class ShiftAssignmentManager {
 
     if (!hasAvailability) {
       this.updateTimeSlotCounts(shift, false); // Rollback the count
+      return false;
     }
 
-    return hasAvailability;
+    return true;
   }
 
   public assignShift(
@@ -141,14 +147,12 @@ export class ShiftAssignmentManager {
       this.longShiftCount++;
     }
 
-    // Log the assignment and current capacity
-    const timeSlots = this.getTimeSlots(shift);
-    const capacityInfo = timeSlots.map(slot => 
-      `${slot}: ${this.employeesPerTimeSlot.get(slot) || 0}/${SCHEDULING_CONSTANTS.MAX_EMPLOYEES_PER_SHIFT}`
-    ).join(', ');
-
-    console.log(`Assigned ${employee.first_name} to ${shiftType} (${shift.start_time} - ${shift.end_time})`);
-    console.log(`Current capacity: ${capacityInfo}`);
+    // Log the assignment details
+    console.log(`\nAssignment details for ${employee.first_name}:`);
+    console.log(`- Shift type: ${shiftType}`);
+    console.log(`- Time: ${shift.start_time} - ${shift.end_time}`);
+    console.log(`- Duration: ${shiftDuration} hours`);
+    console.log(`- Current ${shiftType} count: ${this.shiftCounts[shiftType]}`);
   }
 
   public getAssignments(): ShiftAssignment[] {

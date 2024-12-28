@@ -22,23 +22,25 @@ export class ScheduleGenerator {
     let allRequirementsMet = true;
     const shiftTypes = ["Day Shift Early", "Day Shift", "Swing Shift", "Graveyard"];
 
-    console.log(`\nChecking requirements for ${currentDate}:`);
+    console.log(`\n=== Checking requirements for ${currentDate} ===`);
     console.log('\nCurrent capacity by time slot:');
     console.log(assignmentManager.getCapacityInfo());
     
     shiftTypes.forEach(shiftType => {
       const required = requirementsManager.getRequiredStaffForShiftType(shiftType);
       const current = counts[shiftType] || 0;
-      console.log(`${shiftType}: ${current}/${required} staff`);
+      console.log(`\n${shiftType}:`);
+      console.log(`- Required staff: ${required}`);
+      console.log(`- Current staff: ${current}`);
       
       if (current < required) {
-        console.log(`❌ Requirements not met for ${shiftType}`);
+        console.log(`❌ UNDERSTAFFED: Need ${required - current} more for ${shiftType}`);
         allRequirementsMet = false;
       } else if (current > required) {
-        console.log(`⚠️ Warning: Over-staffed for ${shiftType} (${current}/${required})`);
+        console.log(`⚠️ OVERSTAFFED: ${current - required} extra staff for ${shiftType}`);
         allRequirementsMet = false;
       } else {
-        console.log(`✅ Requirements exactly met for ${shiftType}`);
+        console.log(`✅ EXACT STAFFING: Requirements met for ${shiftType}`);
       }
     });
 
@@ -46,6 +48,7 @@ export class ScheduleGenerator {
   }
 
   public async generateSchedule(weekStartDate: string, userId: string): Promise<SchedulingResult> {
+    console.log('\n=== Starting Schedule Generation ===');
     const { employees, shifts, coverageReqs, availability } = await this.dataFetcher.fetchSchedulingData();
     const schedule = await this.dataFetcher.createSchedule(weekStartDate, userId);
 
@@ -64,19 +67,20 @@ export class ScheduleGenerator {
 
       while (!dayRequirementsMet && attempts < SCHEDULING_CONSTANTS.MAX_SCHEDULING_ATTEMPTS) {
         attempts++;
-        console.log(`\nAttempt ${attempts} for ${currentDate}`);
+        console.log(`\n>>> Attempt ${attempts} for ${currentDate}`);
         assignmentManager.resetDailyCounts();
 
-        // Process shifts in order
+        // Process shifts in chronological order
         const shiftTypes = ["Day Shift Early", "Day Shift", "Swing Shift", "Graveyard"];
         
         // Process one shift type at a time until its requirements are met
         for (const shiftType of shiftTypes) {
-          console.log(`\nProcessing ${shiftType} assignments`);
+          console.log(`\n=== Processing ${shiftType} assignments ===`);
           
           const shiftsOfType = shifts.filter(s => getShiftType(s.start_time) === shiftType);
-          console.log(`Found ${shiftsOfType.length} ${shiftType} shifts`);
+          console.log(`Found ${shiftsOfType.length} ${shiftType} shifts available`);
 
+          // Sort shifts by duration (longer shifts first)
           const sortedShifts = [...shiftsOfType].sort((a, b) => {
             const durationA = this.getShiftDuration(a);
             const durationB = this.getShiftDuration(b);
@@ -101,32 +105,48 @@ export class ScheduleGenerator {
           // Shuffle employees to randomize assignments while maintaining requirements
           const shuffledEmployees = [...availableEmployees].sort(() => Math.random() - 0.5);
           
-          let assignedCount = 0;
           const currentCounts = assignmentManager.getCurrentCounts();
+          const currentStaffCount = currentCounts[shiftType] || 0;
           
-          // Only assign if we haven't met the requirements for this shift type
-          if ((currentCounts[shiftType] || 0) < requiredStaff) {
+          console.log(`Current staff count for ${shiftType}: ${currentStaffCount}/${requiredStaff}`);
+
+          if (currentStaffCount < requiredStaff) {
+            const neededStaff = requiredStaff - currentStaffCount;
+            console.log(`Need ${neededStaff} more staff for ${shiftType}`);
+
+            let assignedInThisRound = 0;
             for (const employee of shuffledEmployees) {
-              // Stop assigning once we've met the requirement exactly for this shift type
-              if ((currentCounts[shiftType] || 0) >= requiredStaff) {
-                console.log(`Met exact required staff (${requiredStaff}) for ${shiftType}, moving to next shift type`);
+              // Check if we've met requirements for this shift type
+              if (assignedInThisRound >= neededStaff) {
+                console.log(`Met requirements for ${shiftType}, moving to next shift type`);
                 break;
               }
 
               // Try to assign a shift to this employee
+              let assigned = false;
               for (const shift of sortedShifts) {
                 if (assignmentManager.canAssignShift(employee, shift, availability, dayOfWeek)) {
+                  console.log(`Assigning ${employee.first_name} to ${shiftType} (${shift.start_time} - ${shift.end_time})`);
                   assignmentManager.assignShift(schedule.id, employee, shift, currentDate);
-                  assignedCount++;
+                  assignedInThisRound++;
+                  assigned = true;
                   break;
                 }
               }
+              
+              if (!assigned) {
+                console.log(`Could not assign ${employee.first_name} to any ${shiftType} shift`);
+              }
             }
+
+            console.log(`Assigned ${assignedInThisRound} employees to ${shiftType} this round`);
           } else {
             console.log(`Requirements already met for ${shiftType}, skipping assignments`);
           }
 
-          console.log(`${shiftType} final staffing: ${assignedCount}/${requiredStaff}`);
+          // Log final staffing after this shift type's assignments
+          const finalCounts = assignmentManager.getCurrentCounts();
+          console.log(`\nFinal staffing for ${shiftType}: ${finalCounts[shiftType] || 0}/${requiredStaff}`);
         }
 
         dayRequirementsMet = this.checkDayRequirements(
@@ -142,7 +162,8 @@ export class ScheduleGenerator {
     }
 
     const assignments = assignmentManager.getAssignments();
-    console.log(`\nTotal assignments generated: ${assignments.length}`);
+    console.log(`\n=== Schedule Generation Complete ===`);
+    console.log(`Total assignments generated: ${assignments.length}`);
     
     await this.dataFetcher.saveAssignments(assignments);
 
