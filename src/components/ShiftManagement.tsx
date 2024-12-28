@@ -52,7 +52,15 @@ export function ShiftManagement() {
 
   const deleteShiftMutation = useMutation({
     mutationFn: async (shiftId: string) => {
-      // First, delete all employee availability records that reference this shift
+      // First, delete all schedule assignments that reference this shift
+      const { error: scheduleAssignmentsError } = await supabase
+        .from("schedule_assignments")
+        .delete()
+        .eq("shift_id", shiftId);
+
+      if (scheduleAssignmentsError) throw scheduleAssignmentsError;
+
+      // Then, delete all employee availability records that reference this shift
       const { error: availabilityError } = await supabase
         .from("employee_availability")
         .delete()
@@ -60,7 +68,7 @@ export function ShiftManagement() {
 
       if (availabilityError) throw availabilityError;
 
-      // Then delete the shift itself
+      // Finally delete the shift itself
       const { error: shiftError } = await supabase
         .from("shifts")
         .delete()
