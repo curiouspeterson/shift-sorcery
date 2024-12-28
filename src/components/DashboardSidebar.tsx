@@ -7,6 +7,7 @@ import {
   LogOut,
   Settings,
   Users,
+  Clock3,
 } from "lucide-react";
 import {
   Sidebar,
@@ -63,6 +64,11 @@ export function DashboardSidebar() {
       title: "Schedule",
       icon: Calendar,
       path: "/dashboard/schedule",
+    },
+    {
+      title: "Availability",
+      icon: Clock3,
+      path: "/dashboard/availability",
     },
     {
       title: "Time Off",

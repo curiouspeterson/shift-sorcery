@@ -7,6 +7,7 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import Index from "./pages/Index";
 import ScheduleView from "./pages/dashboard/ScheduleView";
 import EmployeesView from "./pages/dashboard/EmployeesView";
+import AvailabilityView from "./pages/dashboard/AvailabilityView";
 
 const queryClient = new QueryClient();
 
@@ -25,6 +26,7 @@ const App = () => (
                 <Routes>
                   <Route path="/" element={<ScheduleView />} />
                   <Route path="/schedule" element={<ScheduleView />} />
+                  <Route path="/availability" element={<AvailabilityView />} />
                   <Route path="/time-off" element={<div>Time Off</div>} />
                   <Route path="/employees" element={<EmployeesView />} />
                   <Route path="/settings" element={<div>Settings</div>} />
