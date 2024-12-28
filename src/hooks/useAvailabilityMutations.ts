@@ -23,6 +23,7 @@ export function useAvailabilityMutations(employeeId: string) {
       return data;
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['availability'] });
       queryClient.invalidateQueries({ queryKey: ['availability', employeeId] });
       toast.success("Availability added successfully");
     },
@@ -52,6 +53,8 @@ export function useAvailabilityMutations(employeeId: string) {
       return { id, startTime, endTime };
     },
     onSuccess: () => {
+      // Invalidate both the general availability query and the specific employee's availability
+      queryClient.invalidateQueries({ queryKey: ['availability'] });
       queryClient.invalidateQueries({ queryKey: ['availability', employeeId] });
       toast.success("Availability updated successfully");
     },
@@ -73,6 +76,7 @@ export function useAvailabilityMutations(employeeId: string) {
       if (error) throw error;
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['availability'] });
       queryClient.invalidateQueries({ queryKey: ['availability', employeeId] });
       toast.success("Availability deleted successfully");
     },
