@@ -39,12 +39,19 @@ export function useAvailabilityMutations(employeeId: string) {
       // First check if the record exists
       const { data: existingRecord, error: checkError } = await supabase
         .from('employee_availability')
-        .select()
+        .select('*')
         .eq('id', id)
+        .limit(1)
         .maybeSingle();
 
-      if (checkError) throw checkError;
-      if (!existingRecord) throw new Error("Availability record not found");
+      if (checkError) {
+        console.error("Error checking availability record:", checkError);
+        throw new Error("Failed to check availability record");
+      }
+
+      if (!existingRecord) {
+        throw new Error("Availability record not found");
+      }
 
       // If record exists, proceed with update
       const { data, error } = await supabase
@@ -58,8 +65,15 @@ export function useAvailabilityMutations(employeeId: string) {
         .select()
         .maybeSingle();
 
-      if (error) throw error;
-      if (!data) throw new Error("Failed to update availability");
+      if (error) {
+        console.error("Error updating availability:", error);
+        throw error;
+      }
+
+      if (!data) {
+        throw new Error("Failed to update availability");
+      }
+
       return data;
     },
     onSuccess: () => {
