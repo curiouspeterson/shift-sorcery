@@ -27,14 +27,23 @@ export function AvailabilityDayItem({
   onDelete,
   onAdd,
 }: AvailabilityDayItemProps) {
+  const formatShiftTime = (timeString?: string) => {
+    if (!timeString) return '';
+    try {
+      return format(new Date(`2024-01-01T${timeString}`), 'h:mm a');
+    } catch (error) {
+      console.error('Error formatting time:', error);
+      return timeString;
+    }
+  };
+
   return (
     <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
       <span className="font-medium">{day}</span>
-      {availability ? (
+      {availability?.shifts ? (
         <div className="flex items-center gap-4">
           <span className="text-sm text-muted-foreground">
-            {availability.shifts?.name} ({format(new Date(`2024-01-01T${availability.shifts?.start_time}`), 'h:mm a')} -{' '}
-            {format(new Date(`2024-01-01T${availability.shifts?.end_time}`), 'h:mm a')})
+            {availability.shifts.name} ({formatShiftTime(availability.shifts.start_time)} - {formatShiftTime(availability.shifts.end_time)})
           </span>
           <div className="flex items-center gap-2">
             <Button
