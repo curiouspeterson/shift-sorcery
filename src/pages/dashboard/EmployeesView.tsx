@@ -47,11 +47,11 @@ export default function EmployeesView() {
     try {
       setIsSeeding(true);
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/seed-employees`,
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/seed-employees`,
         {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
           },
         }
       );
