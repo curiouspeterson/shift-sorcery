@@ -1,9 +1,11 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { format, startOfWeek } from "date-fns";
+import { format, startOfWeek, addWeeks, subWeeks } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { ScheduleCalendar } from "./schedule/ScheduleCalendar";
 import { ScheduleControls } from "./schedule/ScheduleControls";
+import { Button } from "./ui/button";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 export function ScheduleGenerator() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
@@ -44,10 +46,31 @@ export function ScheduleGenerator() {
     }
   });
 
+  const handlePreviousWeek = () => {
+    setSelectedDate(subWeeks(selectedDate, 1));
+  };
+
+  const handleNextWeek = () => {
+    setSelectedDate(addWeeks(selectedDate, 1));
+  };
+
   if (!userId) return null;
 
   return (
     <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <Button variant="outline" onClick={handlePreviousWeek}>
+          <ChevronLeft className="h-4 w-4 mr-2" />
+          Previous Week
+        </Button>
+        <span className="font-medium">
+          Week of {format(startOfWeek(selectedDate), "MMM d, yyyy")}
+        </span>
+        <Button variant="outline" onClick={handleNextWeek}>
+          Next Week
+          <ChevronRight className="h-4 w-4 ml-2" />
+        </Button>
+      </div>
       <ScheduleControls
         selectedDate={selectedDate}
         userId={userId}
