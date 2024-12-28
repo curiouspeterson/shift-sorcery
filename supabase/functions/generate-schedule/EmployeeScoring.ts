@@ -12,26 +12,34 @@ export class EmployeeScoring {
   ): number {
     let score = 100;
 
-    // Penalize if employee would exceed weekly hours
-    const shiftHours = this.getShiftHours(shift);
+    // Get current weekly hours
     const currentHours = this.weeklyHoursTracker.getCurrentHours(employee.id);
+    const shiftHours = this.getShiftHours(shift);
+
+    // Immediately disqualify if would exceed weekly hours
     if ((currentHours + shiftHours) > SCHEDULING_CONSTANTS.MAX_HOURS_PER_WEEK) {
-      return 0; // Immediately disqualify
+      return 0;
     }
 
-    // Penalize if below minimum hours but not too much
+    // Prioritize employees who need more hours to meet minimum
     if (currentHours < SCHEDULING_CONSTANTS.MIN_HOURS_PER_WEEK) {
-      score += 20; // Prioritize employees who need more hours
+      score += 30;
     }
 
     // Check consecutive days
     const consecutiveDays = this.getConsecutiveWorkDays(employee.id, currentDate, assignments);
     if (consecutiveDays >= SCHEDULING_CONSTANTS.MAX_CONSECUTIVE_DAYS) {
-      return 0; // Immediately disqualify
+      return 0;
     }
 
     // Penalize based on consecutive days worked
-    score -= consecutiveDays * 5;
+    score -= consecutiveDays * 10;
+
+    // Bonus for employees under target hours
+    const targetHours = (SCHEDULING_CONSTANTS.MIN_HOURS_PER_WEEK + SCHEDULING_CONSTANTS.MAX_HOURS_PER_WEEK) / 2;
+    if (currentHours < targetHours) {
+      score += 20;
+    }
 
     return Math.max(0, score);
   }
@@ -39,9 +47,11 @@ export class EmployeeScoring {
   private getShiftHours(shift: any): number {
     const start = new Date(`2000-01-01T${shift.start_time}`);
     let end = new Date(`2000-01-01T${shift.end_time}`);
+    
     if (end <= start) {
       end = new Date(`2000-01-02T${shift.end_time}`);
     }
+    
     return (end.getTime() - start.getTime()) / (1000 * 60 * 60);
   }
 
