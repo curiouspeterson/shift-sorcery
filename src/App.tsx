@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import Index from "./pages/Index";
 import ScheduleView from "./pages/dashboard/ScheduleView";
+import EmployeesView from "./pages/dashboard/EmployeesView";
 
 const queryClient = new QueryClient();
 
@@ -25,7 +26,7 @@ const App = () => (
                   <Route path="/" element={<ScheduleView />} />
                   <Route path="/schedule" element={<ScheduleView />} />
                   <Route path="/time-off" element={<div>Time Off</div>} />
-                  <Route path="/employees" element={<div>Employees</div>} />
+                  <Route path="/employees" element={<EmployeesView />} />
                   <Route path="/settings" element={<div>Settings</div>} />
                 </Routes>
               </DashboardLayout>
