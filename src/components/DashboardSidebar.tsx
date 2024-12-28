@@ -20,12 +20,9 @@ import {
 } from "@/components/ui/sidebar";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import type { Database } from "@/integrations/supabase/types";
 
-type Profile = {
-  role: 'employee' | 'manager';
-  first_name: string;
-  last_name: string;
-};
+type Profile = Database['public']['Tables']['profiles']['Row'];
 
 export function DashboardSidebar() {
   const navigate = useNavigate();
@@ -38,7 +35,7 @@ export function DashboardSidebar() {
       if (user) {
         const { data } = await supabase
           .from('profiles')
-          .select('role, first_name, last_name')
+          .select('*')
           .eq('id', user.id)
           .single();
         
