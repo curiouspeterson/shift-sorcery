@@ -34,8 +34,11 @@ export class ScheduleGenerator {
       if (current < required) {
         console.log(`❌ Requirements not met for ${shiftType}`);
         allRequirementsMet = false;
+      } else if (current > required) {
+        console.log(`⚠️ Warning: Over-staffed for ${shiftType} (${current}/${required})`);
+        allRequirementsMet = false;
       } else {
-        console.log(`✅ Requirements met for ${shiftType}`);
+        console.log(`✅ Requirements exactly met for ${shiftType}`);
       }
     });
 
@@ -64,8 +67,8 @@ export class ScheduleGenerator {
         console.log(`\nAttempt ${attempts} for ${currentDate}`);
         assignmentManager.resetDailyCounts();
 
-        // Process shifts in reverse chronological order
-        const shiftTypes = ["Graveyard", "Swing Shift", "Day Shift", "Day Shift Early"];
+        // Process shifts in order
+        const shiftTypes = ["Day Shift Early", "Day Shift", "Swing Shift", "Graveyard"];
         
         for (const shiftType of shiftTypes) {
           console.log(`\nProcessing ${shiftType} assignments`);
@@ -82,6 +85,7 @@ export class ScheduleGenerator {
           const requiredStaff = requirementsManager.getRequiredStaffForShiftType(shiftType);
           console.log(`Required staff for ${shiftType}: ${requiredStaff}`);
 
+          // Get available employees for this shift type
           const availableEmployees = employees.filter(employee => {
             const hasAvailability = availability.some(a => 
               a.employee_id === employee.id && 
@@ -93,16 +97,18 @@ export class ScheduleGenerator {
 
           console.log(`Found ${availableEmployees.length} available employees for ${shiftType}`);
 
+          // Shuffle employees to randomize assignments while maintaining requirements
           const shuffledEmployees = [...availableEmployees].sort(() => Math.random() - 0.5);
           
           let assignedCount = 0;
           for (const employee of shuffledEmployees) {
-            // Stop assigning once we've met the requirement
+            // Stop assigning once we've met the requirement exactly
             if (assignedCount >= requiredStaff) {
-              console.log(`Met required staff (${requiredStaff}) for ${shiftType}, stopping assignments`);
+              console.log(`Met exact required staff (${requiredStaff}) for ${shiftType}, stopping assignments`);
               break;
             }
 
+            // Try to assign a shift to this employee
             for (const shift of sortedShifts) {
               if (assignmentManager.canAssignShift(employee, shift, availability, dayOfWeek)) {
                 assignmentManager.assignShift(schedule.id, employee, shift, currentDate);
@@ -122,7 +128,7 @@ export class ScheduleGenerator {
         );
 
         if (!dayRequirementsMet && attempts === SCHEDULING_CONSTANTS.MAX_SCHEDULING_ATTEMPTS) {
-          console.log(`⚠️ Warning: Could not meet all requirements for ${currentDate} after ${SCHEDULING_CONSTANTS.MAX_SCHEDULING_ATTEMPTS} attempts`);
+          console.log(`⚠️ Warning: Could not meet exact requirements for ${currentDate} after ${SCHEDULING_CONSTANTS.MAX_SCHEDULING_ATTEMPTS} attempts`);
         }
       }
     }
