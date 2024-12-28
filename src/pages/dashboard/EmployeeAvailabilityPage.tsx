@@ -42,7 +42,10 @@ export default function EmployeeAvailabilityPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('employee_availability')
-        .select('*')
+        .select(`
+          *,
+          shifts (*)
+        `)
         .eq('employee_id', employeeId);
 
       if (error) {
