@@ -76,14 +76,24 @@ export function ScheduleControls({
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <div className="space-y-1">
+        <div className="flex items-center gap-2">
           <h3 className="text-lg font-medium">Schedule Status</h3>
           {scheduleData ? (
-            <Badge variant={scheduleData.status === 'draft' ? 'secondary' : 'success'}>
+            <Badge variant={scheduleData.status === 'draft' ? 'secondary' : 'outline'}>
               {scheduleData.status === 'draft' ? 'Draft' : 'Published'}
             </Badge>
           ) : (
             <Badge variant="outline">No Schedule</Badge>
+          )}
+          {scheduleData && (
+            <Button 
+              onClick={handleDeleteSchedule} 
+              variant="destructive" 
+              size="icon"
+              className="ml-2 h-7 w-7"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
           )}
         </div>
         <div className="space-x-2">
@@ -93,14 +103,9 @@ export function ScheduleControls({
             </Button>
           )}
           {scheduleData?.status === 'draft' && (
-            <>
-              <Button onClick={handlePublishSchedule} variant="secondary">
-                Publish Schedule
-              </Button>
-              <Button onClick={handleDeleteSchedule} variant="destructive" size="icon">
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </>
+            <Button onClick={handlePublishSchedule} variant="secondary">
+              Publish Schedule
+            </Button>
           )}
         </div>
       </div>
