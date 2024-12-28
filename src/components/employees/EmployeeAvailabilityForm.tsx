@@ -52,9 +52,6 @@ export function EmployeeAvailabilityForm({ employeeId, availability }: EmployeeA
   const handleSave = async () => {
     if (editingDay === null || !selectedShiftId) return;
 
-    const shift = shifts?.find(s => s.id === selectedShiftId);
-    if (!shift) return;
-
     const existingAvailability = availability?.find(
       (a) => a.day_of_week === editingDay
     );
@@ -63,18 +60,15 @@ export function EmployeeAvailabilityForm({ employeeId, availability }: EmployeeA
       if (existingAvailability) {
         await updateMutation.mutateAsync({
           id: existingAvailability.id,
-          startTime: shift.start_time,
-          endTime: shift.end_time,
+          shiftId: selectedShiftId,
         });
       } else {
         await createMutation.mutateAsync({
           dayOfWeek: editingDay,
-          startTime: shift.start_time,
-          endTime: shift.end_time,
+          shiftId: selectedShiftId,
         });
       }
 
-      // Reset state and invalidate queries
       setEditingDay(null);
       setSelectedShiftId(null);
       queryClient.invalidateQueries({ queryKey: ['availability'] });
