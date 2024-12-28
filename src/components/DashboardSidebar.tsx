@@ -71,8 +71,16 @@ export function DashboardSidebar() {
   }, []);
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
-    navigate("/");
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      toast.success("Logged out successfully");
+      navigate("/");
+    } catch (error: any) {
+      toast.error("Error signing out", {
+        description: error.message
+      });
+    }
   };
 
   const menuItems = [
