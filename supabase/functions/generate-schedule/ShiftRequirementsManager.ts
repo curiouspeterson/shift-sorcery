@@ -1,5 +1,5 @@
 import { CoverageRequirement, ShiftRequirements } from './types.ts';
-import { getShiftType } from './shiftUtils.ts';
+import { getShiftType } from './ShiftUtils.ts';
 
 export class ShiftRequirementsManager {
   private requirements: ShiftRequirements = {

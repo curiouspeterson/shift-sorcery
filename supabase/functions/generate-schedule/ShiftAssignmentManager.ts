@@ -1,5 +1,5 @@
 import { Shift, Employee, Availability, ShiftAssignment } from './types.ts';
-import { getShiftType, getShiftDuration } from './shiftUtils.ts';
+import { getShiftType, getShiftDuration } from './ShiftUtils.ts';
 import { ShiftRequirementsManager } from './ShiftRequirementsManager.ts';
 import { TimeSlotManager } from './TimeSlotManager.ts';
 import { ShiftCounter } from './ShiftCounter.ts';
