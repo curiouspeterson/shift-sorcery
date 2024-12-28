@@ -52,34 +52,34 @@ export function ShiftManagement() {
 
   const deleteShiftMutation = useMutation({
     mutationFn: async (shiftId: string) => {
-      // Delete schedule assignments
-      const { error: scheduleAssignmentsError } = await supabase
+      // Delete schedule assignments first
+      const scheduleAssignments = await supabase
         .from("schedule_assignments")
         .delete()
         .eq("shift_id", shiftId);
-
-      if (scheduleAssignmentsError) {
-        throw new Error(`Failed to delete schedule assignments: ${scheduleAssignmentsError.message}`);
+      
+      if (scheduleAssignments.error) {
+        throw new Error(`Failed to delete schedule assignments: ${scheduleAssignments.error.message}`);
       }
 
-      // Delete employee availability
-      const { error: availabilityError } = await supabase
+      // Then delete employee availability
+      const employeeAvailability = await supabase
         .from("employee_availability")
         .delete()
         .eq("shift_id", shiftId);
-
-      if (availabilityError) {
-        throw new Error(`Failed to delete employee availability: ${availabilityError.message}`);
+      
+      if (employeeAvailability.error) {
+        throw new Error(`Failed to delete employee availability: ${employeeAvailability.error.message}`);
       }
 
-      // Delete the shift
-      const { error: shiftError } = await supabase
+      // Finally delete the shift
+      const shift = await supabase
         .from("shifts")
         .delete()
         .eq("id", shiftId);
-
-      if (shiftError) {
-        throw new Error(`Failed to delete shift: ${shiftError.message}`);
+      
+      if (shift.error) {
+        throw new Error(`Failed to delete shift: ${shift.error.message}`);
       }
 
       return true;
