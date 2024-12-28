@@ -26,10 +26,18 @@ export function ScheduleControls({
   const handleGenerateSchedule = async () => {
     try {
       await generateScheduleForWeek(selectedDate, userId);
+      
+      // Invalidate and refetch the schedule data
+      await queryClient.invalidateQueries({ 
+        queryKey: ["schedule", format(selectedDate, "yyyy-MM-dd")] 
+      });
+      
+      // Call the onScheduleGenerated callback to trigger a refetch
+      onScheduleGenerated();
+      
       toast.success("Schedule generated successfully", {
         description: `Draft schedule created for week of ${format(startOfWeek(selectedDate), "MMM d, yyyy")}`
       });
-      onScheduleGenerated();
     } catch (error: any) {
       toast.error("Failed to generate schedule: " + error.message);
     }
