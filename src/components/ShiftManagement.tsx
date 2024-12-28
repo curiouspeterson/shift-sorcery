@@ -45,21 +45,35 @@ export function ShiftManagement() {
       toast.success("Shift created successfully");
       setNewShift({ name: "", startTime: "09:00", endTime: "17:00" });
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast.error("Failed to create shift: " + error.message);
     },
   });
 
   const deleteShiftMutation = useMutation({
     mutationFn: async (shiftId: string) => {
-      const { error } = await supabase.from("shifts").delete().eq("id", shiftId);
-      if (error) throw error;
+      // First, delete all employee availability records that reference this shift
+      const { error: availabilityError } = await supabase
+        .from("employee_availability")
+        .delete()
+        .eq("shift_id", shiftId);
+
+      if (availabilityError) throw availabilityError;
+
+      // Then delete the shift itself
+      const { error: shiftError } = await supabase
+        .from("shifts")
+        .delete()
+        .eq("id", shiftId);
+
+      if (shiftError) throw shiftError;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["shifts"] });
       toast.success("Shift deleted successfully");
     },
-    onError: (error) => {
+    onError: (error: any) => {
+      console.error("Delete shift error:", error);
       toast.error("Failed to delete shift: " + error.message);
     },
   });
