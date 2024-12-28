@@ -33,6 +33,20 @@ export class ScheduleGenerator {
       throw new Error('Failed to fetch required data');
     }
 
+    // Log available shifts
+    console.log('Available shifts:', shifts.map(s => ({
+      name: s.name,
+      time: `${s.start_time} - ${s.end_time}`,
+      type: getShiftType(s.start_time)
+    })));
+
+    // Log employee availability
+    console.log('Employee availability:', availability.map(a => ({
+      employee_id: a.employee_id,
+      day: a.day_of_week,
+      shift: shifts.find(s => s.id === a.shift_id)
+    })));
+
     return { employees, shifts, coverageReqs, availability };
   }
 
@@ -64,11 +78,14 @@ export class ScheduleGenerator {
   ): boolean {
     // Don't assign if employee already has a shift this day
     if (this.assignments.some(a => a.employee_id === emp.employeeId && a.date === currentDate)) {
+      console.log(`Skipping assignment for ${emp.employeeId} - already has shift on ${currentDate}`);
       return false;
     }
 
     // Only assign if the shift matches the requested type
-    if (getShiftType(shift.start_time) !== shiftType) {
+    const actualShiftType = getShiftType(shift.start_time);
+    if (actualShiftType !== shiftType) {
+      console.log(`Skipping assignment - shift type mismatch. Expected ${shiftType}, got ${actualShiftType}`);
       return false;
     }
 
@@ -80,10 +97,11 @@ export class ScheduleGenerator {
         shift_id: emp.shiftId,
         date: currentDate,
       });
-      console.log(`Assigned ${emp.employeeId} to ${shift.name} (${shift.start_time} - ${shift.end_time}) on ${currentDate}`);
+      console.log(`Successfully assigned ${emp.employeeId} to ${shift.name} (${shift.start_time} - ${shift.end_time}) on ${currentDate}`);
       return true;
     }
 
+    console.log(`Skipping assignment - wouldn't help meet coverage requirements`);
     return false;
   }
 
@@ -95,7 +113,7 @@ export class ScheduleGenerator {
     for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
       const currentDate = format(addDays(parseISO(weekStartDate), dayOffset), 'yyyy-MM-dd');
       const dayOfWeek = new Date(currentDate).getDay();
-      console.log(`Processing day ${dayOfWeek} (${currentDate})`);
+      console.log(`\nProcessing day ${dayOfWeek} (${currentDate})`);
 
       const coverageTracker = new CoverageTracker(coverageReqs);
 
@@ -107,18 +125,31 @@ export class ScheduleGenerator {
           shiftId: a.shift_id,
         }));
 
+      console.log(`Found ${availableEmployees.length} available employees for day ${dayOfWeek}`);
+
       // Process each shift type in order
       const shiftTypes = ["Day Shift Early", "Day Shift", "Swing Shift", "Graveyard"];
       
       for (const shiftType of shiftTypes) {
-        console.log(`Processing ${shiftType} assignments`);
+        console.log(`\nProcessing ${shiftType} assignments`);
+        
+        // Get employees available for this shift type
+        const availableForShiftType = availableEmployees.filter(emp => {
+          const shift = shifts.find(s => s.id === emp.shiftId);
+          return shift && getShiftType(shift.start_time) === shiftType;
+        });
+
+        console.log(`Found ${availableForShiftType.length} employees available for ${shiftType}`);
         
         // Shuffle employees to randomize assignments while maintaining patterns
-        const shuffledEmployees = availableEmployees.sort(() => Math.random() - 0.5);
+        const shuffledEmployees = availableForShiftType.sort(() => Math.random() - 0.5);
 
         for (const emp of shuffledEmployees) {
           const shift = shifts.find(s => s.id === emp.shiftId);
-          if (!shift) continue;
+          if (!shift) {
+            console.log(`No shift found for id ${emp.shiftId}`);
+            continue;
+          }
 
           this.assignShift(schedule, currentDate, emp, shift, coverageTracker, shiftType);
         }
