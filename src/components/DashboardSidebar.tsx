@@ -75,12 +75,12 @@ export function DashboardSidebar() {
       icon: Clock,
       path: "/dashboard/time-off",
     },
+    {
+      title: "Employees",
+      icon: Users,
+      path: "/dashboard/employees",
+    },
     ...(profile?.role === 'manager' ? [
-      {
-        title: "Employees",
-        icon: Users,
-        path: "/dashboard/employees",
-      },
       {
         title: "Settings",
         icon: Settings,
