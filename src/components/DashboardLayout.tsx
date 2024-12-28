@@ -5,12 +5,16 @@ import { DashboardSidebar } from "@/components/DashboardSidebar";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { clearAuthData } from "@/utils/auth";
+import { Loader2 } from "lucide-react";
 
 export const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   useEffect(() => {
+    let mounted = true;
+
     const checkAuth = async () => {
       try {
         // First check if we have a session
@@ -21,6 +25,7 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
         }
 
         if (!session) {
+          console.log("No session found, redirecting to login");
           await clearAuthData();
           navigate("/");
           return;
@@ -31,21 +36,39 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
         if (userError) {
           throw userError;
         }
+
+        // Check if user has a profile
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
+
+        if (profileError || !profile) {
+          console.error("Profile error:", profileError);
+          setAuthError("Unable to load user profile. Please contact support.");
+          return;
+        }
+
+        if (mounted) {
+          setIsLoading(false);
+          setAuthError(null);
+        }
       } catch (error: any) {
         console.error("Auth error:", error);
-        await clearAuthData();
-        
-        if (error.message === "No session found") {
-          // Quietly redirect to login without error message
-          navigate("/");
-        } else {
-          toast.error("Authentication error", {
-            description: "Please sign in again"
-          });
-          navigate("/");
+        if (mounted) {
+          setAuthError(error.message);
+          await clearAuthData();
+          
+          if (error.message === "No session found") {
+            navigate("/");
+          } else {
+            toast.error("Authentication error", {
+              description: "Please sign in again"
+            });
+            navigate("/");
+          }
         }
-      } finally {
-        setIsLoading(false);
       }
     };
     
@@ -58,11 +81,33 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, [navigate]);
 
+  if (authError) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen p-4">
+        <div className="text-destructive mb-4">Error: {authError}</div>
+        <button
+          onClick={() => navigate("/")}
+          className="text-primary hover:underline"
+        >
+          Return to Login
+        </button>
+      </div>
+    );
+  }
+
   if (isLoading) {
-    return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin mb-4" />
+        <p className="text-muted-foreground">Loading your dashboard...</p>
+      </div>
+    );
   }
 
   return (
