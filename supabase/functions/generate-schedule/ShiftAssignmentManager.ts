@@ -7,10 +7,12 @@ import { ShiftCounter } from './ShiftCounter.ts';
 export class ShiftAssignmentManager {
   private assignments: ShiftAssignment[] = [];
   private employeesAssignedToday: Set<string> = new Set();
+  private employeeWeeklyHours: Map<string, number> = new Map();
   private timeSlotManager: TimeSlotManager;
   private shiftCounter: ShiftCounter;
   private longShiftCount: number = 0;
   private readonly MAX_LONG_SHIFTS = 3;
+  private readonly MAX_WEEKLY_HOURS = 40;
 
   constructor(private requirementsManager: ShiftRequirementsManager) {
     this.timeSlotManager = new TimeSlotManager();
@@ -71,6 +73,12 @@ export class ShiftAssignmentManager {
     return true;
   }
 
+  private wouldExceedWeeklyHours(employee: Employee, shift: Shift): boolean {
+    const currentHours = this.employeeWeeklyHours.get(employee.id) || 0;
+    const shiftHours = getShiftDuration(shift);
+    return (currentHours + shiftHours) > this.MAX_WEEKLY_HOURS;
+  }
+
   public canAssignShift(
     employee: Employee,
     shift: Shift,
@@ -83,6 +91,12 @@ export class ShiftAssignmentManager {
     // Check if employee is already assigned today
     if (this.employeesAssignedToday.has(employee.id)) {
       console.log(`❌ ${employee.first_name} already assigned today`);
+      return false;
+    }
+
+    // Check weekly hours limit
+    if (this.wouldExceedWeeklyHours(employee, shift)) {
+      console.log(`❌ ${employee.first_name} would exceed 40 weekly hours`);
       return false;
     }
 
@@ -134,6 +148,10 @@ export class ShiftAssignmentManager {
     const shiftType = getShiftType(shift.start_time);
     const shiftDuration = getShiftDuration(shift);
 
+    // Update weekly hours
+    const currentHours = this.employeeWeeklyHours.get(employee.id) || 0;
+    this.employeeWeeklyHours.set(employee.id, currentHours + shiftDuration);
+
     this.assignments.push({
       schedule_id: scheduleId,
       employee_id: employee.id,
@@ -151,6 +169,7 @@ export class ShiftAssignmentManager {
     console.log(`- Shift type: ${shiftType}`);
     console.log(`- Time: ${shift.start_time} - ${shift.end_time}`);
     console.log(`- Duration: ${shiftDuration} hours`);
+    console.log(`- Weekly hours: ${this.employeeWeeklyHours.get(employee.id)}`);
     console.log(`- Current ${shiftType} count: ${this.shiftCounter.getCurrentCount(shiftType)}/${this.requirementsManager.getRequiredStaffForShiftType(shiftType)}`);
     console.log(`- Long shifts assigned: ${this.longShiftCount}/${this.MAX_LONG_SHIFTS}`);
   }
@@ -165,5 +184,24 @@ export class ShiftAssignmentManager {
 
   public getCapacityInfo(): string {
     return this.timeSlotManager.getCapacityInfo();
+  }
+
+  public areAllRequirementsMet(): boolean {
+    const shiftTypes = ["Day Shift Early", "Day Shift", "Swing Shift", "Graveyard"];
+    
+    for (const shiftType of shiftTypes) {
+      const currentCount = this.shiftCounter.getCurrentCount(shiftType);
+      const required = this.requirementsManager.getRequiredStaffForShiftType(shiftType);
+      
+      console.log(`Checking ${shiftType}: ${currentCount}/${required}`);
+      
+      if (currentCount < required) {
+        console.log(`❌ Requirements not met for ${shiftType}`);
+        return false;
+      }
+    }
+    
+    console.log('✅ All shift requirements met');
+    return true;
   }
 }

@@ -13,7 +13,8 @@ export function getShiftDuration(shift: Shift): number {
   const start = new Date(`2000-01-01T${shift.start_time}`);
   let end = new Date(`2000-01-01T${shift.end_time}`);
   
-  if (end < start) {
+  // Handle overnight shifts
+  if (end <= start) {
     end = new Date(`2000-01-02T${shift.end_time}`);
   }
   
