@@ -7,6 +7,7 @@ import {
   Users,
   Clock3,
   Grid,
+  AlertCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SidebarMenu, SidebarMenuItem, SidebarMenuButton } from "@/components/ui/sidebar";
@@ -60,6 +61,11 @@ export function SidebarNavigation({ profile }: SidebarNavigationProps) {
         path: "/dashboard/settings",
       },
     ] : []),
+    {
+      title: "Status",
+      icon: AlertCircle,
+      path: "/dashboard/status",
+    },
   ];
 
   return (

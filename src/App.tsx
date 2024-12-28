@@ -10,6 +10,7 @@ import EmployeesView from "./pages/dashboard/EmployeesView";
 import AvailabilityView from "./pages/dashboard/AvailabilityView";
 import TimeOffView from "./pages/dashboard/TimeOffView";
 import ShiftsView from "./pages/dashboard/ShiftsView";
+import StatusView from "./pages/dashboard/StatusView";
 import EmployeeAvailabilityPage from "./pages/dashboard/EmployeeAvailabilityPage";
 
 const queryClient = new QueryClient();
@@ -33,6 +34,7 @@ const App = () => (
                   <Route path="/time-off" element={<TimeOffView />} />
                   <Route path="/employees" element={<EmployeesView />} />
                   <Route path="/shifts" element={<ShiftsView />} />
+                  <Route path="/status" element={<StatusView />} />
                   <Route path="/employees/:employeeId/availability" element={<EmployeeAvailabilityPage />} />
                   <Route path="/settings" element={<div>Settings</div>} />
                 </Routes>
