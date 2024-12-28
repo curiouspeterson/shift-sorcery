@@ -36,27 +36,20 @@ export function useAvailabilityMutations(employeeId: string) {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, startTime, endTime }: { id: string; startTime: string; endTime: string }) => {
-      const { data, error } = await supabase
+      const { error: updateError } = await supabase
         .from('employee_availability')
         .update({ 
           start_time: startTime, 
           end_time: endTime,
           updated_at: new Date().toISOString(),
         })
-        .eq('id', id)
-        .select()
-        .maybeSingle();
+        .eq('id', id);
 
-      if (error) {
-        console.error("Error updating availability:", error);
-        throw error;
+      if (updateError) {
+        throw updateError;
       }
 
-      if (!data) {
-        throw new Error("No availability record found to update");
-      }
-
-      return data;
+      return { id, startTime, endTime };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['availability', employeeId] });
