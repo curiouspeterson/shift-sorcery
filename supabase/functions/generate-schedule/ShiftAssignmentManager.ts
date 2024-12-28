@@ -41,9 +41,9 @@ export class ShiftAssignmentManager {
     console.log(`\nChecking time slot capacity for ${shiftType}:`);
     console.log(`Current count: ${this.shiftCounts[shiftType]}, Required: ${required}`);
 
-    // Check if we've already met the requirements for this shift type
+    // Strict enforcement: Do not allow exceeding minimum requirements
     if (increment && this.shiftCounts[shiftType] >= required) {
-      console.log(`❌ Cannot assign: ${shiftType} already at capacity (${this.shiftCounts[shiftType]}/${required})`);
+      console.log(`❌ Cannot assign: ${shiftType} already at required capacity (${this.shiftCounts[shiftType]}/${required})`);
       return false;
     }
 
@@ -51,8 +51,10 @@ export class ShiftAssignmentManager {
     if (increment) {
       for (const slot of timeSlots) {
         const currentCount = this.employeesPerTimeSlot.get(slot) || 0;
-        if (currentCount + delta > SCHEDULING_CONSTANTS.MAX_EMPLOYEES_PER_SHIFT) {
-          console.log(`❌ Cannot assign: would exceed max capacity (${SCHEDULING_CONSTANTS.MAX_EMPLOYEES_PER_SHIFT}) at ${slot}`);
+        const maxForSlot = Math.min(SCHEDULING_CONSTANTS.MAX_EMPLOYEES_PER_SHIFT, required);
+        
+        if (currentCount + delta > maxForSlot) {
+          console.log(`❌ Cannot assign: would exceed max capacity (${maxForSlot}) at ${slot}`);
           return false;
         }
       }
@@ -102,10 +104,10 @@ export class ShiftAssignmentManager {
       return false;
     }
 
-    // Check if we've reached the maximum for this shift type
+    // Strict enforcement: Check against minimum requirements
     const required = this.requirementsManager.getRequiredStaffForShiftType(shiftType);
     if (this.shiftCounts[shiftType] >= required) {
-      console.log(`❌ Maximum staff (${required}) reached for ${shiftType}`);
+      console.log(`❌ Already met minimum requirement (${required}) for ${shiftType}`);
       return false;
     }
 
