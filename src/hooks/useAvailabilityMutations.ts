@@ -5,35 +5,23 @@ import { toast } from "sonner";
 export function useAvailabilityMutations(employeeId: string) {
   const queryClient = useQueryClient();
 
-  const invalidateQueries = () => {
-    // Invalidate both the specific employee's availability and all availability queries
-    queryClient.invalidateQueries({
-      queryKey: ['availability', employeeId],
-    });
-    queryClient.invalidateQueries({
-      queryKey: ['availability'],
-    });
-  };
-
   const createMutation = useMutation({
-    mutationFn: async ({ dayOfWeek, startTime, endTime }: { dayOfWeek: number; startTime: string; endTime: string }) => {
+    mutationFn: async ({ dayOfWeek, shiftId }: { dayOfWeek: number; shiftId: string }) => {
       const { data, error } = await supabase
         .from('employee_availability')
         .insert({
           employee_id: employeeId,
           day_of_week: dayOfWeek,
-          start_time: startTime,
-          end_time: endTime,
+          shift_id: shiftId,
         })
         .select()
         .maybeSingle();
 
       if (error) throw error;
-      if (!data) throw new Error("Failed to create availability");
       return data;
     },
     onSuccess: () => {
-      invalidateQueries();
+      queryClient.invalidateQueries({ queryKey: ['availability', employeeId] });
       toast.success("Availability added successfully");
     },
     onError: (error: any) => {
@@ -45,21 +33,19 @@ export function useAvailabilityMutations(employeeId: string) {
   });
 
   const updateMutation = useMutation({
-    mutationFn: async ({ id, startTime, endTime }: { id: string; startTime: string; endTime: string }) => {
+    mutationFn: async ({ id, shiftId }: { id: string; shiftId: string }) => {
       const { error } = await supabase
         .from('employee_availability')
         .update({ 
-          start_time: startTime, 
-          end_time: endTime,
+          shift_id: shiftId,
           updated_at: new Date().toISOString(),
         })
         .eq('id', id);
 
       if (error) throw error;
-      return { id, startTime, endTime };
     },
     onSuccess: () => {
-      invalidateQueries();
+      queryClient.invalidateQueries({ queryKey: ['availability', employeeId] });
       toast.success("Availability updated successfully");
     },
     onError: (error: any) => {
@@ -78,10 +64,9 @@ export function useAvailabilityMutations(employeeId: string) {
         .eq('id', id);
 
       if (error) throw error;
-      return id;
     },
     onSuccess: () => {
-      invalidateQueries();
+      queryClient.invalidateQueries({ queryKey: ['availability', employeeId] });
       toast.success("Availability deleted successfully");
     },
     onError: (error: any) => {
