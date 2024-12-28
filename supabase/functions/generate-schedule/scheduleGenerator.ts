@@ -20,7 +20,7 @@ export class ScheduleGenerator {
   ): boolean {
     const counts = assignmentManager.getCurrentCounts();
     let allRequirementsMet = true;
-    const shiftTypes = ["Graveyard", "Swing Shift", "Day Shift", "Day Shift Early"];
+    const shiftTypes = ["Day Shift Early", "Day Shift", "Swing Shift", "Graveyard"];
 
     console.log(`\nChecking requirements for ${currentDate}:`);
     console.log('\nCurrent capacity by time slot:');
@@ -70,6 +70,7 @@ export class ScheduleGenerator {
         // Process shifts in order
         const shiftTypes = ["Day Shift Early", "Day Shift", "Swing Shift", "Graveyard"];
         
+        // Process one shift type at a time until its requirements are met
         for (const shiftType of shiftTypes) {
           console.log(`\nProcessing ${shiftType} assignments`);
           
@@ -101,21 +102,28 @@ export class ScheduleGenerator {
           const shuffledEmployees = [...availableEmployees].sort(() => Math.random() - 0.5);
           
           let assignedCount = 0;
-          for (const employee of shuffledEmployees) {
-            // Stop assigning once we've met the requirement exactly
-            if (assignedCount >= requiredStaff) {
-              console.log(`Met exact required staff (${requiredStaff}) for ${shiftType}, stopping assignments`);
-              break;
-            }
-
-            // Try to assign a shift to this employee
-            for (const shift of sortedShifts) {
-              if (assignmentManager.canAssignShift(employee, shift, availability, dayOfWeek)) {
-                assignmentManager.assignShift(schedule.id, employee, shift, currentDate);
-                assignedCount++;
+          const currentCounts = assignmentManager.getCurrentCounts();
+          
+          // Only assign if we haven't met the requirements for this shift type
+          if ((currentCounts[shiftType] || 0) < requiredStaff) {
+            for (const employee of shuffledEmployees) {
+              // Stop assigning once we've met the requirement exactly for this shift type
+              if ((currentCounts[shiftType] || 0) >= requiredStaff) {
+                console.log(`Met exact required staff (${requiredStaff}) for ${shiftType}, moving to next shift type`);
                 break;
               }
+
+              // Try to assign a shift to this employee
+              for (const shift of sortedShifts) {
+                if (assignmentManager.canAssignShift(employee, shift, availability, dayOfWeek)) {
+                  assignmentManager.assignShift(schedule.id, employee, shift, currentDate);
+                  assignedCount++;
+                  break;
+                }
+              }
             }
+          } else {
+            console.log(`Requirements already met for ${shiftType}, skipping assignments`);
           }
 
           console.log(`${shiftType} final staffing: ${assignedCount}/${requiredStaff}`);
