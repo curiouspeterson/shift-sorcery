@@ -4,13 +4,11 @@ import { Button } from "@/components/ui/button";
 import { CreateEmployeeDialog } from "@/components/CreateEmployeeDialog";
 import { useEmployeeData } from "@/hooks/useEmployeeData";
 import { EmployeeCard } from "./EmployeeCard";
-import { EmployeeAvailabilityDialog } from "./EmployeeAvailabilityDialog";
 import { EmployeeScheduleDialog } from "./EmployeeScheduleDialog";
 
 export function EmployeeList() {
   const [isCreating, setIsCreating] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<any>(null);
-  const [showAvailability, setShowAvailability] = useState(false);
   const [showSchedule, setShowSchedule] = useState(false);
 
   const {
@@ -55,10 +53,6 @@ export function EmployeeList() {
             key={employee.id}
             employee={employee}
             onDelete={handleDeleteEmployee}
-            onViewAvailability={(emp) => {
-              setSelectedEmployee(emp);
-              setShowAvailability(true);
-            }}
             onViewSchedule={(emp) => {
               setSelectedEmployee(emp);
               setShowSchedule(true);
@@ -70,12 +64,6 @@ export function EmployeeList() {
       <CreateEmployeeDialog
         open={isCreating}
         onOpenChange={setIsCreating}
-      />
-
-      <EmployeeAvailabilityDialog
-        employee={selectedEmployee}
-        open={showAvailability}
-        onOpenChange={setShowAvailability}
       />
 
       <EmployeeScheduleDialog

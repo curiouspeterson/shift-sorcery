@@ -7,20 +7,21 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { Calendar, Clock, Trash2 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 interface EmployeeCardProps {
   employee: any;
   onDelete: (id: string) => void;
-  onViewAvailability: (employee: any) => void;
   onViewSchedule: (employee: any) => void;
 }
 
 export function EmployeeCard({
   employee,
   onDelete,
-  onViewAvailability,
   onViewSchedule,
 }: EmployeeCardProps) {
+  const navigate = useNavigate();
+
   return (
     <Card>
       <CardHeader>
@@ -36,7 +37,7 @@ export function EmployeeCard({
           <Button
             variant="outline"
             className="w-full"
-            onClick={() => onViewAvailability(employee)}
+            onClick={() => navigate(`/dashboard/employees/${employee.id}/availability`)}
           >
             <Clock className="mr-2 h-4 w-4" />
             View Availability
