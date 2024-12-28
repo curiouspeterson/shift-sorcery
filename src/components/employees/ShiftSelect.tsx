@@ -12,7 +12,7 @@ import { format } from "date-fns";
 interface ShiftSelectProps {
   label: string;
   value: string | null;
-  onValueChange: (shiftId: string) => void;
+  onValueChange: (value: string) => void;
 }
 
 export function ShiftSelect({
@@ -33,24 +33,26 @@ export function ShiftSelect({
     },
   });
 
-  const selectedShift = shifts?.find(s => s.id === value);
-  const displayValue = selectedShift 
-    ? `${format(new Date(`2024-01-01T${selectedShift.start_time}`), 'h:mm a')} - ${format(new Date(`2024-01-01T${selectedShift.end_time}`), 'h:mm a')}`
-    : '';
+  const formatShiftTime = (timeString: string) => {
+    try {
+      return format(new Date(`2024-01-01T${timeString}`), 'h:mm a');
+    } catch (error) {
+      console.error('Error formatting time:', error);
+      return timeString;
+    }
+  };
 
   return (
     <div className="space-y-2">
       <label className="text-sm font-medium">{label}</label>
       <Select value={value || ''} onValueChange={onValueChange}>
         <SelectTrigger>
-          <SelectValue placeholder="Select a shift">
-            {displayValue}
-          </SelectValue>
+          <SelectValue placeholder="Select a shift" />
         </SelectTrigger>
         <SelectContent>
           {shifts?.map((shift) => (
             <SelectItem key={shift.id} value={shift.id}>
-              {format(new Date(`2024-01-01T${shift.start_time}`), 'h:mm a')} - {format(new Date(`2024-01-01T${shift.end_time}`), 'h:mm a')}
+              {shift.name} ({formatShiftTime(shift.start_time)} - {formatShiftTime(shift.end_time)})
             </SelectItem>
           ))}
         </SelectContent>
