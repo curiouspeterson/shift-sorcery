@@ -28,7 +28,12 @@ export function TimeOffRequestsManager() {
         .eq("status", "pending")
         .order("start_date", { ascending: true });
 
-      if (error) throw error;
+      if (error) {
+        toast.error("Error fetching requests", {
+          description: error.message,
+        });
+        return [];
+      }
       return data;
     },
   });
@@ -66,18 +71,24 @@ export function TimeOffRequestsManager() {
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          {requests?.length === 0 ? (
+          {!requests || requests.length === 0 ? (
             <p className="text-muted-foreground">No pending requests</p>
           ) : (
-            requests?.map((request) => (
+            requests.map((request) => (
               <div
                 key={request.id}
                 className="flex items-center justify-between p-4 border rounded-lg"
               >
                 <div className="space-y-1">
-                  <p className="font-medium">
-                    {request.employee.first_name} {request.employee.last_name}
-                  </p>
+                  {request.employee ? (
+                    <p className="font-medium">
+                      {request.employee.first_name} {request.employee.last_name}
+                    </p>
+                  ) : (
+                    <p className="font-medium text-muted-foreground">
+                      Employee not found
+                    </p>
+                  )}
                   <p className="text-sm text-muted-foreground">
                     {format(new Date(request.start_date), "MMM d, yyyy")} -{" "}
                     {format(new Date(request.end_date), "MMM d, yyyy")}
