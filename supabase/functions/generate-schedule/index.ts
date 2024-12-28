@@ -1,169 +1,184 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { corsHeaders } from '../_shared/cors.ts'
-import { addDays, format, parseISO, differenceInHours } from 'https://esm.sh/date-fns@3'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.7';
+import { format, addDays, parseISO } from 'https://esm.sh/date-fns@3.3.1';
 
-const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
 
-const supabase = createClient(supabaseUrl, serviceRoleKey)
-
-// Helper function to calculate hours between times
-function calculateHoursBetween(start: string, end: string): number {
-  const startDate = parseISO(`2000-01-01T${start}`)
-  const endDate = parseISO(`2000-01-01T${end}`)
-  return differenceInHours(endDate, startDate)
+interface Employee {
+  id: string;
+  first_name: string;
+  last_name: string;
 }
 
-// Helper function to check if shift meets coverage requirements
-async function meetsMinimumStaffing(
-  date: string,
-  shift: any,
-  existingAssignments: any[]
-): Promise<boolean> {
-  const { data: requirements } = await supabase
-    .from('coverage_requirements')
-    .select('*')
-    .order('start_time')
+interface Shift {
+  id: string;
+  name: string;
+  start_time: string;
+  end_time: string;
+}
 
-  if (!requirements) return false
+interface CoverageRequirement {
+  start_time: string;
+  end_time: string;
+  min_employees: number;
+}
 
-  // Count employees working during each requirement period
-  for (const req of requirements) {
-    const employeesWorking = existingAssignments.filter(assignment => {
-      const shiftStart = assignment.shift.start_time
-      const shiftEnd = assignment.shift.end_time
-      return (shiftStart <= req.end_time && shiftEnd >= req.start_time)
-    }).length
-
-    if (employeesWorking < req.min_employees) {
-      return false
-    }
-  }
-
-  return true
+interface Availability {
+  employee_id: string;
+  day_of_week: number;
+  shift_id: string;
 }
 
 Deno.serve(async (req) => {
-  // Handle CORS
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders })
+    return new Response('ok', { headers: corsHeaders });
   }
 
   try {
-    const { weekStartDate, userId } = await req.json()
-    
-    if (!weekStartDate || !userId) {
-      throw new Error('weekStartDate and userId are required')
-    }
+    const { weekStartDate, userId } = await req.json();
 
-    // Create new schedule
-    const { data: schedule, error: scheduleError } = await supabase
-      .from('schedules')
-      .insert({
-        week_start_date: weekStartDate,
-        status: 'draft',
-        created_by: userId,
-      })
-      .select()
-      .single()
+    // Create Supabase client
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
 
-    if (scheduleError) throw scheduleError
-
-    // Get all employees
-    const { data: employees } = await supabase
+    // Fetch all necessary data
+    const { data: employees } = await supabaseClient
       .from('profiles')
-      .select('*, employee_availability(*)')
-      .eq('role', 'employee')
+      .select('*')
+      .eq('role', 'employee');
 
-    if (!employees?.length) {
-      throw new Error('No employees found')
-    }
-
-    // Get shifts
-    const { data: shifts } = await supabase
+    const { data: shifts } = await supabaseClient
       .from('shifts')
       .select('*')
-      .order('start_time')
+      .order('start_time');
 
-    if (!shifts?.length) {
-      throw new Error('No shifts defined')
+    const { data: coverageReqs } = await supabaseClient
+      .from('coverage_requirements')
+      .select('*')
+      .order('start_time');
+
+    const { data: availability } = await supabaseClient
+      .from('employee_availability')
+      .select('*');
+
+    if (!employees || !shifts || !coverageReqs || !availability) {
+      throw new Error('Failed to fetch required data');
     }
 
-    const assignments = []
-    
-    // Group shifts by duration
-    const tenHourShifts = shifts.filter(s => calculateHoursBetween(s.start_time, s.end_time) === 10)
-    const twelveHourShifts = shifts.filter(s => calculateHoursBetween(s.start_time, s.end_time) === 12)
-    const fourHourShifts = shifts.filter(s => calculateHoursBetween(s.start_time, s.end_time) === 4)
+    // Create schedule record
+    const { data: schedule } = await supabaseClient
+      .from('schedules')
+      .insert([
+        {
+          week_start_date: weekStartDate,
+          status: 'draft',
+          created_by: userId,
+        },
+      ])
+      .select()
+      .single();
 
-    // Assign shifts to employees
-    for (const employee of employees) {
-      // Randomly choose between 4x10 or 3x12+4 schedule
-      const usesTenHourShifts = Math.random() < 0.5
+    if (!schedule) {
+      throw new Error('Failed to create schedule');
+    }
 
-      if (usesTenHourShifts && tenHourShifts.length > 0) {
-        // Assign 4 consecutive 10-hour shifts
-        const shift = tenHourShifts[Math.floor(Math.random() * tenHourShifts.length)]
-        const startDay = Math.floor(Math.random() * 4) // Random start day (0-3)
-        
-        for (let i = 0; i < 4; i++) {
-          const date = format(addDays(new Date(weekStartDate), startDay + i), 'yyyy-MM-dd')
+    // Helper function to check if a shift covers a requirement
+    const shiftCoversPeriod = (shift: Shift, req: CoverageRequirement) => {
+      const shiftStart = new Date(`2000-01-01T${shift.start_time}`).getTime();
+      const shiftEnd = new Date(`2000-01-01T${shift.end_time}`).getTime();
+      const reqStart = new Date(`2000-01-01T${req.start_time}`).getTime();
+      const reqEnd = new Date(`2000-01-01T${req.end_time}`).getTime();
+
+      // Handle overnight shifts
+      if (reqEnd < reqStart) {
+        return (shiftStart <= reqEnd || shiftStart >= reqStart) &&
+               (shiftEnd <= reqEnd || shiftEnd >= reqStart);
+      }
+
+      return shiftStart <= reqEnd && shiftEnd >= reqStart;
+    };
+
+    // Process each day of the week
+    const assignments = [];
+    for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
+      const currentDate = format(addDays(parseISO(weekStartDate), dayOffset), 'yyyy-MM-dd');
+      const dayOfWeek = new Date(currentDate).getDay();
+
+      // Group shifts by coverage period
+      const periodAssignments = new Map<string, number>();
+      coverageReqs.forEach(req => {
+        periodAssignments.set(`${req.start_time}-${req.end_time}`, 0);
+      });
+
+      // Get available employees for this day
+      const availableEmployees = availability
+        .filter(a => a.day_of_week === dayOfWeek)
+        .map(a => ({
+          employeeId: a.employee_id,
+          shiftId: a.shift_id,
+        }));
+
+      // Shuffle available employees to randomize assignments
+      const shuffledEmployees = availableEmployees.sort(() => Math.random() - 0.5);
+
+      // Assign shifts ensuring coverage requirements are met
+      for (const emp of shuffledEmployees) {
+        const shift = shifts.find(s => s.id === emp.shiftId);
+        if (!shift) continue;
+
+        // Check which requirements this shift would help cover
+        const coverableReqs = coverageReqs.filter(req => 
+          shiftCoversPeriod(shift, req) && 
+          periodAssignments.get(`${req.start_time}-${req.end_time}`)! < req.min_employees
+        );
+
+        // Only assign if this helps meet a requirement that needs more coverage
+        if (coverableReqs.length > 0) {
           assignments.push({
             schedule_id: schedule.id,
-            employee_id: employee.id,
-            shift_id: shift.id,
-            date: date,
-          })
+            employee_id: emp.employeeId,
+            shift_id: emp.shiftId,
+            date: currentDate,
+          });
+
+          // Update coverage counts
+          coverableReqs.forEach(req => {
+            const key = `${req.start_time}-${req.end_time}`;
+            periodAssignments.set(key, (periodAssignments.get(key) || 0) + 1);
+          });
         }
-      } else if (twelveHourShifts.length > 0 && fourHourShifts.length > 0) {
-        // Assign 3 consecutive 12-hour shifts and 1 4-hour shift
-        const twelveHourShift = twelveHourShifts[Math.floor(Math.random() * twelveHourShifts.length)]
-        const fourHourShift = fourHourShifts[Math.floor(Math.random() * fourHourShifts.length)]
-        const startDay = Math.floor(Math.random() * 4) // Random start day (0-3)
-        
-        // Add three 12-hour shifts
-        for (let i = 0; i < 3; i++) {
-          const date = format(addDays(new Date(weekStartDate), startDay + i), 'yyyy-MM-dd')
-          assignments.push({
-            schedule_id: schedule.id,
-            employee_id: employee.id,
-            shift_id: twelveHourShift.id,
-            date: date,
-          })
-        }
-        
-        // Add one 4-hour shift
-        const fourHourDate = format(addDays(new Date(weekStartDate), startDay + 3), 'yyyy-MM-dd')
-        assignments.push({
-          schedule_id: schedule.id,
-          employee_id: employee.id,
-          shift_id: fourHourShift.id,
-          date: fourHourDate,
-        })
       }
     }
 
-    console.log(`Generated ${assignments.length} assignments for ${employees.length} employees`)
+    // Insert all assignments
+    if (assignments.length > 0) {
+      const { error: assignmentError } = await supabaseClient
+        .from('schedule_assignments')
+        .insert(assignments);
 
-    // Insert assignments
-    const { error: assignmentError } = await supabase
-      .from('schedule_assignments')
-      .insert(assignments)
-
-    if (assignmentError) throw assignmentError
+      if (assignmentError) {
+        throw assignmentError;
+      }
+    }
 
     return new Response(
-      JSON.stringify({ 
-        message: 'Schedule generated successfully',
-        assignmentsCount: assignments.length
-      }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
+      JSON.stringify({ message: 'Schedule generated successfully' }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200,
+      }
+    );
   } catch (error) {
-    console.error('Error generating schedule:', error)
     return new Response(
       JSON.stringify({ error: error.message }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
-    )
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400,
+      }
+    );
   }
-})
+});
