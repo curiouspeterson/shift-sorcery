@@ -52,12 +52,6 @@ const Index = () => {
           }}
           providers={[]}
           redirectTo={window.location.origin}
-          onError={(error) => {
-            console.error("Auth error:", error);
-            toast.error("Authentication error", {
-              description: error.message
-            });
-          }}
         />
       </div>
     </div>

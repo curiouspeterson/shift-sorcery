@@ -28,6 +28,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 const formSchema = z.object({
   email: z.string().email(),
@@ -61,24 +62,17 @@ export function CreateEmployeeDialog({ open, onOpenChange }: CreateEmployeeDialo
   const onSubmit = async (data: FormData) => {
     try {
       setIsLoading(true);
+      console.log("Submitting employee data:", data);
 
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-employee`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          },
-          body: JSON.stringify(data),
-        }
-      );
+      const { data: result, error } = await supabase.functions.invoke('create-employee', {
+        body: data
+      });
 
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to create employee');
+      if (error) {
+        throw error;
       }
+
+      console.log("Employee creation result:", result);
 
       toast({
         title: "Employee created",
