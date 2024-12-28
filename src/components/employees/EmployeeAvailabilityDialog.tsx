@@ -1,7 +1,5 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { format } from "date-fns";
-import { Plus, Pencil, Trash } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
@@ -12,18 +10,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-
-const TIME_SLOTS = Array.from({ length: 24 }, (_, i) => {
-  const hour = i.toString().padStart(2, "0");
-  return `${hour}:00`;
-});
+import { AvailabilityTimeSelect } from "./AvailabilityTimeSelect";
+import { AvailabilityDayItem } from "./AvailabilityDayItem";
+import { useAvailabilityMutations } from "@/hooks/useAvailabilityMutations";
 
 const DAYS_OF_WEEK = [
   "Sunday",
@@ -46,7 +35,6 @@ export function EmployeeAvailabilityDialog({
   open,
   onOpenChange,
 }: EmployeeAvailabilityDialogProps) {
-  const queryClient = useQueryClient();
   const [editingDay, setEditingDay] = useState<number | null>(null);
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("17:00");
@@ -71,71 +59,7 @@ export function EmployeeAvailabilityDialog({
     },
   });
 
-  const createMutation = useMutation({
-    mutationFn: async (dayOfWeek: number) => {
-      const { error } = await supabase
-        .from('employee_availability')
-        .insert({
-          employee_id: employee.id,
-          day_of_week: dayOfWeek,
-          start_time: startTime,
-          end_time: endTime,
-        });
-
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['availability', employee?.id] });
-      toast.success("Availability added successfully");
-      setEditingDay(null);
-    },
-    onError: (error: any) => {
-      toast.error("Error adding availability", {
-        description: error.message,
-      });
-    },
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: async ({ id, startTime, endTime }: { id: string; startTime: string; endTime: string }) => {
-      const { error } = await supabase
-        .from('employee_availability')
-        .update({ start_time: startTime, end_time: endTime })
-        .eq('id', id);
-
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['availability', employee?.id] });
-      toast.success("Availability updated successfully");
-      setEditingDay(null);
-    },
-    onError: (error: any) => {
-      toast.error("Error updating availability", {
-        description: error.message,
-      });
-    },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from('employee_availability')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['availability', employee?.id] });
-      toast.success("Availability deleted successfully");
-    },
-    onError: (error: any) => {
-      toast.error("Error deleting availability", {
-        description: error.message,
-      });
-    },
-  });
+  const { createMutation, updateMutation, deleteMutation } = useAvailabilityMutations(employee?.id);
 
   const handleAddAvailability = (dayOfWeek: number) => {
     setEditingDay(dayOfWeek);
@@ -157,8 +81,13 @@ export function EmployeeAvailabilityDialog({
         endTime,
       });
     } else {
-      createMutation.mutate(editingDay);
+      createMutation.mutate({
+        dayOfWeek: editingDay,
+        startTime,
+        endTime,
+      });
     }
+    setEditingDay(null);
   };
 
   return (
@@ -179,44 +108,21 @@ export function EmployeeAvailabilityDialog({
             );
 
             return (
-              <div key={index} className="flex items-center justify-between p-2 bg-muted rounded-lg">
-                <span className="font-medium">{day}</span>
-                {dayAvailability ? (
-                  <div className="flex items-center gap-2">
-                    <span>
-                      {format(new Date(`2024-01-01T${dayAvailability.start_time}`), 'h:mm a')} -{' '}
-                      {format(new Date(`2024-01-01T${dayAvailability.end_time}`), 'h:mm a')}
-                    </span>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => {
-                        setEditingDay(index);
-                        setStartTime(dayAvailability.start_time);
-                        setEndTime(dayAvailability.end_time);
-                      }}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => deleteMutation.mutate(dayAvailability.id)}
-                    >
-                      <Trash className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ) : (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleAddAvailability(index)}
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Availability
-                  </Button>
-                )}
-              </div>
+              <AvailabilityDayItem
+                key={index}
+                day={day}
+                dayIndex={index}
+                availability={dayAvailability}
+                onEdit={(dayIndex) => {
+                  setEditingDay(dayIndex);
+                  if (dayAvailability) {
+                    setStartTime(dayAvailability.start_time);
+                    setEndTime(dayAvailability.end_time);
+                  }
+                }}
+                onDelete={(id) => deleteMutation.mutate(id)}
+                onAdd={handleAddAvailability}
+              />
             );
           })}
         </div>
@@ -227,36 +133,16 @@ export function EmployeeAvailabilityDialog({
               {editingDay !== null ? `Edit ${DAYS_OF_WEEK[editingDay]} Availability` : 'Add Availability'}
             </h3>
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Start Time</label>
-                <Select value={startTime} onValueChange={setStartTime}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {TIME_SLOTS.map((time) => (
-                      <SelectItem key={time} value={time}>
-                        {format(new Date(`2024-01-01T${time}`), 'h:mm a')}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">End Time</label>
-                <Select value={endTime} onValueChange={setEndTime}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {TIME_SLOTS.map((time) => (
-                      <SelectItem key={time} value={time}>
-                        {format(new Date(`2024-01-01T${time}`), 'h:mm a')}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <AvailabilityTimeSelect
+                label="Start Time"
+                value={startTime}
+                onValueChange={setStartTime}
+              />
+              <AvailabilityTimeSelect
+                label="End Time"
+                value={endTime}
+                onValueChange={setEndTime}
+              />
             </div>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setEditingDay(null)}>
