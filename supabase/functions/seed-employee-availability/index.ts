@@ -17,7 +17,7 @@ const DEFAULT_WEEKEND_END = '16:00'
 Deno.serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response(null, { headers: corsHeaders })
   }
 
   try {
@@ -39,11 +39,11 @@ Deno.serve(async (req) => {
 
     console.log(`Found ${employees.length} employees`)
 
-    // Delete existing availability entries to avoid duplicates
+    // Delete all existing availability entries
     const { error: deleteError } = await supabase
       .from('employee_availability')
       .delete()
-      .neq('employee_id', 'none') // This will delete all entries
+      .gt('id', '00000000-0000-0000-0000-000000000000') // Delete all entries
 
     if (deleteError) {
       console.error('Error deleting existing availability:', deleteError)

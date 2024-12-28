@@ -37,10 +37,15 @@ export default function EmployeeAvailabilityPage() {
         .from('profiles')
         .select('*')
         .eq('id', employeeId)
-        .single();
+        .maybeSingle();
 
       if (error) {
         toast.error("Error fetching employee");
+        return null;
+      }
+      if (!data) {
+        toast.error("Employee not found");
+        navigate('/dashboard/employees');
         return null;
       }
       return data;
