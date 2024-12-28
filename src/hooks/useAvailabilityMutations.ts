@@ -16,7 +16,7 @@ export function useAvailabilityMutations(employeeId: string) {
           end_time: endTime,
         })
         .select()
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
       return data;
@@ -43,9 +43,10 @@ export function useAvailabilityMutations(employeeId: string) {
         })
         .eq('id', id)
         .select()
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
+      if (!data) throw new Error("Availability not found");
       return data;
     },
     onSuccess: () => {
