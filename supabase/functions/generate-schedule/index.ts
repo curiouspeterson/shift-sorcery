@@ -1,3 +1,4 @@
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0';
 import { ScheduleGenerator } from './scheduleGenerator.ts';
 
 const corsHeaders = {
@@ -6,16 +7,21 @@ const corsHeaders = {
 };
 
 Deno.serve(async (req) => {
+  console.log('🚀 Edge function called: generate-schedule');
+
   if (req.method === 'OPTIONS') {
+    console.log('👋 Handling CORS preflight request');
     return new Response('ok', { headers: corsHeaders });
   }
 
   try {
     const { weekStartDate, userId } = await req.json();
-    console.log('Generating schedule for week starting:', weekStartDate);
+    console.log('📅 Generating schedule for:', { weekStartDate, userId });
 
     const generator = new ScheduleGenerator();
     const result = await generator.generateSchedule(weekStartDate, userId);
+
+    console.log('✅ Schedule generation completed:', result);
 
     return new Response(
       JSON.stringify(result),
@@ -25,7 +31,7 @@ Deno.serve(async (req) => {
       }
     );
   } catch (error) {
-    console.error('Error generating schedule:', error);
+    console.error('❌ Edge function error:', error);
     return new Response(
       JSON.stringify({ error: error.message }),
       {

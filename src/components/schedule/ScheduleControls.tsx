@@ -24,47 +24,61 @@ export function ScheduleControls({
   const queryClient = useQueryClient();
 
   const handleGenerateSchedule = async () => {
+    console.log('🎯 Generate schedule clicked', {
+      selectedDate: format(selectedDate, 'yyyy-MM-dd'),
+      userId
+    });
+
     try {
       await generateScheduleForWeek(selectedDate, userId);
       
-      // Invalidate and refetch the schedule data
+      console.log('🔄 Invalidating queries');
       await queryClient.invalidateQueries({ 
         queryKey: ["schedule", format(selectedDate, "yyyy-MM-dd")] 
       });
       
-      // Call the onScheduleGenerated callback to trigger a refetch
+      console.log('🔄 Triggering refetch');
       onScheduleGenerated();
       
       toast.success("Schedule generated successfully", {
         description: `Draft schedule created for week of ${format(startOfWeek(selectedDate), "MMM d, yyyy")}`
       });
     } catch (error: any) {
+      console.error('❌ Schedule generation failed:', error);
       toast.error("Failed to generate schedule: " + error.message);
     }
   };
 
   const handlePublishSchedule = async () => {
     if (!scheduleData?.id) {
+      console.warn('⚠️ Attempted to publish without schedule data');
       toast.error("No schedule to publish");
       return;
     }
 
+    console.log('📢 Publishing schedule:', scheduleData.id);
+
     try {
       await publishSchedule(scheduleData.id);
+      console.log('🔄 Invalidating queries after publish');
       queryClient.invalidateQueries({ queryKey: ["schedule"] });
       toast.success("Schedule published successfully", {
         description: "All employees will be notified of their shifts."
       });
     } catch (error: any) {
+      console.error('❌ Schedule publication failed:', error);
       toast.error("Failed to publish schedule: " + error.message);
     }
   };
 
   const handleDeleteSchedule = async () => {
     if (!scheduleData?.id) {
+      console.warn('⚠️ Attempted to delete without schedule data');
       toast.error("No schedule to delete");
       return;
     }
+
+    console.log('🗑️ Deleting schedule:', scheduleData.id);
 
     try {
       const { error } = await supabase
@@ -72,11 +86,16 @@ export function ScheduleControls({
         .delete()
         .eq('id', scheduleData.id);
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Delete error:', error);
+        throw error;
+      }
 
+      console.log('🔄 Invalidating queries after delete');
       queryClient.invalidateQueries({ queryKey: ["schedule"] });
       toast.success("Schedule deleted successfully");
     } catch (error: any) {
+      console.error('❌ Schedule deletion failed:', error);
       toast.error("Failed to delete schedule: " + error.message);
     }
   };
