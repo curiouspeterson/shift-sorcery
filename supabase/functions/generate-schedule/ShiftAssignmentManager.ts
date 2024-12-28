@@ -6,6 +6,7 @@ import { ShiftCounter } from './ShiftCounter.ts';
 import { WeeklyHoursTracker } from './WeeklyHoursTracker.ts';
 import { DailyAssignmentTracker } from './DailyAssignmentTracker.ts';
 import { AssignmentStorage } from './AssignmentStorage.ts';
+import { SCHEDULING_CONSTANTS } from './constants.ts';
 
 export class ShiftAssignmentManager {
   private timeSlotManager: TimeSlotManager;
@@ -26,6 +27,19 @@ export class ShiftAssignmentManager {
     return this.dailyTracker.isEmployeeAssignedToday(employeeId);
   }
 
+  public canAssignShiftHours(employeeId: string, shift: Shift): boolean {
+    const shiftHours = getShiftDuration(shift);
+    const currentHours = this.weeklyHoursTracker.getCurrentHours(employeeId);
+    const totalHours = currentHours + shiftHours;
+    
+    if (totalHours > SCHEDULING_CONSTANTS.MAX_HOURS_PER_WEEK) {
+      console.log(`Would exceed max weekly hours: ${totalHours} > ${SCHEDULING_CONSTANTS.MAX_HOURS_PER_WEEK}`);
+      return false;
+    }
+    
+    return true;
+  }
+
   public canAssignShift(
     employee: Employee,
     shift: Shift,
@@ -40,9 +54,8 @@ export class ShiftAssignmentManager {
       return false;
     }
 
-    const shiftDuration = getShiftDuration(shift);
-    if (this.weeklyHoursTracker.wouldExceedWeeklyHours(employee.id, shiftDuration)) {
-      console.log(`❌ ${employee.first_name} would exceed 40 weekly hours`);
+    if (!this.canAssignShiftHours(employee.id, shift)) {
+      console.log(`❌ ${employee.first_name} would exceed weekly hours limit`);
       return false;
     }
 

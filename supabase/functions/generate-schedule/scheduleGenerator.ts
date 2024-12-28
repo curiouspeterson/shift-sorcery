@@ -26,9 +26,9 @@ export class ScheduleGenerator {
 
     // Process each shift type
     for (const shiftType of shiftTypes) {
-      console.log(`\nProcessing ${shiftType}`);
+      console.log(`\n=== Processing ${shiftType} ===`);
       const required = requirementsManager.getRequiredStaffForShiftType(shiftType);
-      console.log(`Required staff: ${required}`);
+      console.log(`Required staff for ${shiftType}: ${required}`);
 
       if (required === 0) {
         console.log(`No requirements for ${shiftType}, skipping`);
@@ -37,15 +37,30 @@ export class ScheduleGenerator {
 
       const shiftsOfType = data.shifts.filter(s => getShiftType(s.start_time) === shiftType);
       let currentCount = 0;
+      let attempts = 0;
+      const maxAttemptsPerShift = 10; // Allow multiple attempts per shift type
 
-      // Keep trying to assign employees until we meet requirements
-      while (currentCount < required) {
-        let assigned = false;
-        const availableEmployees = [...data.employees]
-          .sort(() => Math.random() - 0.5)
-          .filter(employee => !assignmentManager.isEmployeeAssignedToday(employee.id));
+      // Keep trying to assign employees until we meet requirements or exhaust attempts
+      while (currentCount < required && attempts < maxAttemptsPerShift) {
+        attempts++;
+        console.log(`\nAttempt ${attempts} for ${shiftType} (Current: ${currentCount}/${required})`);
+
+        // Get all available employees who haven't been assigned today
+        const availableEmployees = data.employees
+          .filter(employee => !assignmentManager.isEmployeeAssignedToday(employee.id))
+          .sort(() => Math.random() - 0.5); // Randomize employee order
+
+        let assignedThisAttempt = false;
 
         for (const employee of availableEmployees) {
+          // Skip if employee would exceed weekly hours
+          const nextShift = shiftsOfType[0]; // Use first shift of type to check hours
+          if (!assignmentManager.canAssignShiftHours(employee.id, nextShift)) {
+            console.log(`${employee.first_name} would exceed weekly hours limit`);
+            continue;
+          }
+
+          // Try each shift of this type
           for (const shift of shiftsOfType) {
             if (assignmentManager.canAssignShift(
               employee,
@@ -55,17 +70,22 @@ export class ScheduleGenerator {
             )) {
               assignmentManager.assignShift(scheduleId, employee, shift, currentDate);
               currentCount++;
-              assigned = true;
-              console.log(`✅ Assigned ${employee.first_name} to ${shiftType}`);
+              assignedThisAttempt = true;
+              console.log(`✅ Assigned ${employee.first_name} to ${shiftType} (${currentCount}/${required})`);
               break;
             }
           }
-          if (assigned) break;
+
+          if (assignedThisAttempt) break;
         }
 
-        if (!assigned) {
-          console.log(`❌ Could not meet requirements for ${shiftType}`);
-          allRequirementsMet = false;
+        if (!assignedThisAttempt) {
+          console.log(`❌ Could not assign any more employees to ${shiftType}`);
+          if (currentCount < required) {
+            allRequirementsMet = false;
+            console.log(`Failed to meet requirements for ${shiftType}: ${currentCount}/${required}`);
+            return false;
+          }
           break;
         }
 
@@ -75,7 +95,11 @@ export class ScheduleGenerator {
         }
       }
 
-      if (!allRequirementsMet) break;
+      if (currentCount < required) {
+        allRequirementsMet = false;
+        console.log(`❌ Failed to meet requirements for ${shiftType} after ${attempts} attempts`);
+        return false;
+      }
     }
 
     return allRequirementsMet;
