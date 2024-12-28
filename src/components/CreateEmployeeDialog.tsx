@@ -63,17 +63,19 @@ export function CreateEmployeeDialog({ open, onOpenChange }: CreateEmployeeDialo
     try {
       setIsLoading(true);
 
-      const { error } = await supabase.auth.admin.createUser({
-        email: data.email,
-        email_confirm: true,
-        user_metadata: {
-          first_name: data.firstName,
-          last_name: data.lastName,
-          role: data.role,
-        },
-      });
+      const { error } = await fetch(
+        `${supabase.supabaseUrl}/functions/v1/create-employee`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${supabase.supabaseKey}`,
+          },
+          body: JSON.stringify(data),
+        }
+      ).then(res => res.json());
 
-      if (error) throw error;
+      if (error) throw new Error(error);
 
       toast({
         title: "Employee created",
