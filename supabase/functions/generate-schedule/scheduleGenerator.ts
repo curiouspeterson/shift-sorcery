@@ -1,13 +1,12 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.7';
 import { format, addDays, parseISO } from 'https://esm.sh/date-fns@3.3.1';
 import { CoverageTracker } from './coverageTracker.ts';
-import { getShiftType, getShiftDuration, isShiftCompatible } from './shiftUtils.ts';
-import { Assignment, Employee, Shift, CoverageRequirement, Availability, EmployeeShiftPattern, ShiftType } from './types.ts';
+import { getShiftType } from './shiftUtils.ts';
+import { Assignment, Employee, Shift, CoverageRequirement, Availability } from './types.ts';
 
 export class ScheduleGenerator {
   private supabase: any;
   private assignments: Assignment[] = [];
-  private employeePatterns: Map<string, ShiftType> = new Map();
 
   constructor() {
     this.supabase = createClient(
@@ -33,14 +32,13 @@ export class ScheduleGenerator {
       throw new Error('Failed to fetch required data');
     }
 
-    // Log available shifts
+    // Log data for debugging
     console.log('Available shifts:', shifts.map(s => ({
       name: s.name,
       time: `${s.start_time} - ${s.end_time}`,
       type: getShiftType(s.start_time)
     })));
 
-    // Log employee availability
     console.log('Employee availability:', availability.map(a => ({
       employee_id: a.employee_id,
       day: a.day_of_week,
@@ -68,40 +66,70 @@ export class ScheduleGenerator {
     return schedule;
   }
 
+  private isEmployeeAvailableForShift(
+    employeeId: string,
+    currentDate: string,
+    shiftType: string,
+    shifts: Shift[],
+    availability: Availability[]
+  ): boolean {
+    // Check if employee is already assigned that day
+    if (this.assignments.some(a => a.employee_id === employeeId && a.date === currentDate)) {
+      console.log(`${employeeId} already has a shift on ${currentDate}`);
+      return false;
+    }
+
+    // Get day of week (0-6)
+    const dayOfWeek = new Date(currentDate).getDay();
+
+    // Check if employee has availability for this shift type on this day
+    const employeeAvailability = availability.filter(a => 
+      a.employee_id === employeeId && 
+      a.day_of_week === dayOfWeek
+    );
+
+    // Check if any of the employee's availability slots match the shift type
+    const hasMatchingShift = employeeAvailability.some(a => {
+      const shift = shifts.find(s => s.id === a.shift_id);
+      return shift && getShiftType(shift.start_time) === shiftType;
+    });
+
+    if (!hasMatchingShift) {
+      console.log(`${employeeId} not available for ${shiftType} on day ${dayOfWeek}`);
+      return false;
+    }
+
+    return true;
+  }
+
   private assignShift(
     schedule: any,
     currentDate: string,
-    emp: { employeeId: string; shiftId: string },
+    employeeId: string,
     shift: Shift,
     coverageTracker: CoverageTracker,
     shiftType: string
   ): boolean {
-    // Don't assign if employee already has a shift this day
-    if (this.assignments.some(a => a.employee_id === emp.employeeId && a.date === currentDate)) {
-      console.log(`Skipping assignment for ${emp.employeeId} - already has shift on ${currentDate}`);
-      return false;
-    }
-
-    // Only assign if the shift matches the requested type
+    // Verify shift type matches
     const actualShiftType = getShiftType(shift.start_time);
     if (actualShiftType !== shiftType) {
-      console.log(`Skipping assignment - shift type mismatch. Expected ${shiftType}, got ${actualShiftType}`);
+      console.log(`Shift type mismatch for ${employeeId}. Expected ${shiftType}, got ${actualShiftType}`);
       return false;
     }
 
-    // Only assign if it helps meet minimum requirements
+    // Only assign if it helps meet coverage requirements
     if (coverageTracker.updateCoverage(shift)) {
       this.assignments.push({
         schedule_id: schedule.id,
-        employee_id: emp.employeeId,
-        shift_id: emp.shiftId,
+        employee_id: employeeId,
+        shift_id: shift.id,
         date: currentDate,
       });
-      console.log(`Successfully assigned ${emp.employeeId} to ${shift.name} (${shift.start_time} - ${shift.end_time}) on ${currentDate}`);
+      console.log(`Successfully assigned ${employeeId} to ${shift.name} (${shift.start_time} - ${shift.end_time}) on ${currentDate}`);
       return true;
     }
 
-    console.log(`Skipping assignment - wouldn't help meet coverage requirements`);
+    console.log(`Assignment wouldn't help meet coverage requirements`);
     return false;
   }
 
@@ -112,49 +140,61 @@ export class ScheduleGenerator {
     // Process each day of the week
     for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
       const currentDate = format(addDays(parseISO(weekStartDate), dayOffset), 'yyyy-MM-dd');
-      const dayOfWeek = new Date(currentDate).getDay();
-      console.log(`\nProcessing day ${dayOfWeek} (${currentDate})`);
+      console.log(`\nProcessing ${format(new Date(currentDate), 'EEEE, MMM d')}`);
 
-      const coverageTracker = new CoverageTracker(coverageReqs);
-
-      // Get available employees for this day
-      const availableEmployees = availability
-        .filter(a => a.day_of_week === dayOfWeek)
-        .map(a => ({
-          employeeId: a.employee_id,
-          shiftId: a.shift_id,
-        }));
-
-      console.log(`Found ${availableEmployees.length} available employees for day ${dayOfWeek}`);
-
-      // Process each shift type in order
-      const shiftTypes = ["Day Shift Early", "Day Shift", "Swing Shift", "Graveyard"];
+      // Process each shift type separately to ensure coverage
+      const shiftTypes = ["Graveyard", "Day Shift Early", "Day Shift", "Swing Shift"];
       
       for (const shiftType of shiftTypes) {
         console.log(`\nProcessing ${shiftType} assignments`);
+        const coverageTracker = new CoverageTracker(coverageReqs);
         
-        // Get employees available for this shift type
-        const availableForShiftType = availableEmployees.filter(emp => {
-          const shift = shifts.find(s => s.id === emp.shiftId);
-          return shift && getShiftType(shift.start_time) === shiftType;
-        });
+        // Get shifts of current type
+        const shiftsOfType = shifts.filter(s => getShiftType(s.start_time) === shiftType);
+        console.log(`Found ${shiftsOfType.length} ${shiftType} shifts`);
 
-        console.log(`Found ${availableForShiftType.length} employees available for ${shiftType}`);
-        
-        // Shuffle employees to randomize assignments while maintaining patterns
-        const shuffledEmployees = availableForShiftType.sort(() => Math.random() - 0.5);
+        // Get available employees for this shift type
+        const availableEmployees = employees.filter(emp => 
+          this.isEmployeeAvailableForShift(
+            emp.id,
+            currentDate,
+            shiftType,
+            shifts,
+            availability
+          )
+        );
 
-        for (const emp of shuffledEmployees) {
-          const shift = shifts.find(s => s.id === emp.shiftId);
-          if (!shift) {
-            console.log(`No shift found for id ${emp.shiftId}`);
-            continue;
-          }
+        console.log(`Found ${availableEmployees.length} employees available for ${shiftType}`);
 
-          this.assignShift(schedule, currentDate, emp, shift, coverageTracker, shiftType);
+        // Randomize employee order
+        const shuffledEmployees = [...availableEmployees].sort(() => Math.random() - 0.5);
+
+        // Try to assign each available employee
+        for (const employee of shuffledEmployees) {
+          // Find matching shift from availability
+          const dayOfWeek = new Date(currentDate).getDay();
+          const employeeAvailability = availability.find(a => 
+            a.employee_id === employee.id && 
+            a.day_of_week === dayOfWeek &&
+            shiftsOfType.some(s => s.id === a.shift_id)
+          );
+
+          if (!employeeAvailability) continue;
+
+          const shift = shifts.find(s => s.id === employeeAvailability.shift_id);
+          if (!shift) continue;
+
+          this.assignShift(
+            schedule,
+            currentDate,
+            employee.id,
+            shift,
+            coverageTracker,
+            shiftType
+          );
         }
 
-        // Log coverage status after processing each shift type
+        // Log coverage status after processing shift type
         console.log(`Coverage status for ${shiftType}:`, coverageTracker.getCoverageStatus());
       }
     }
