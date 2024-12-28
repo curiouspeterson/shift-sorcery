@@ -2,8 +2,9 @@ import { useState } from "react";
 import { AvailabilityDayItem } from "./AvailabilityDayItem";
 import { AvailabilityEditor } from "./availability/AvailabilityEditor";
 import { useAvailabilityMutations } from "@/hooks/useAvailabilityMutations";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 const DAYS_OF_WEEK = [
   "Sunday",
@@ -23,6 +24,7 @@ interface EmployeeAvailabilityFormProps {
 export function EmployeeAvailabilityForm({ employeeId, availability }: EmployeeAvailabilityFormProps) {
   const [editingDay, setEditingDay] = useState<number | null>(null);
   const [selectedShiftId, setSelectedShiftId] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
   const { data: shifts } = useQuery({
     queryKey: ['shifts'],
@@ -32,7 +34,10 @@ export function EmployeeAvailabilityForm({ employeeId, availability }: EmployeeA
         .select('*')
         .order('start_time');
 
-      if (error) throw error;
+      if (error) {
+        toast.error("Error fetching shifts");
+        return [];
+      }
       return data;
     },
   });
@@ -44,7 +49,7 @@ export function EmployeeAvailabilityForm({ employeeId, availability }: EmployeeA
     setSelectedShiftId(null);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (editingDay === null || !selectedShiftId) return;
 
     const shift = shifts?.find(s => s.id === selectedShiftId);
@@ -54,21 +59,39 @@ export function EmployeeAvailabilityForm({ employeeId, availability }: EmployeeA
       (a) => a.day_of_week === editingDay
     );
 
-    if (existingAvailability) {
-      updateMutation.mutate({
-        id: existingAvailability.id,
-        startTime: shift.start_time,
-        endTime: shift.end_time,
-      });
-    } else {
-      createMutation.mutate({
-        dayOfWeek: editingDay,
-        startTime: shift.start_time,
-        endTime: shift.end_time,
-      });
+    try {
+      if (existingAvailability) {
+        await updateMutation.mutateAsync({
+          id: existingAvailability.id,
+          startTime: shift.start_time,
+          endTime: shift.end_time,
+        });
+      } else {
+        await createMutation.mutateAsync({
+          dayOfWeek: editingDay,
+          startTime: shift.start_time,
+          endTime: shift.end_time,
+        });
+      }
+
+      // Reset state and invalidate queries
+      setEditingDay(null);
+      setSelectedShiftId(null);
+      queryClient.invalidateQueries({ queryKey: ['availability'] });
+      toast.success("Availability updated successfully");
+    } catch (error) {
+      toast.error("Failed to update availability");
     }
-    setEditingDay(null);
-    setSelectedShiftId(null);
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteMutation.mutateAsync(id);
+      queryClient.invalidateQueries({ queryKey: ['availability'] });
+      toast.success("Availability deleted successfully");
+    } catch (error) {
+      toast.error("Failed to delete availability");
+    }
   };
 
   return (
@@ -90,7 +113,7 @@ export function EmployeeAvailabilityForm({ employeeId, availability }: EmployeeA
                 setSelectedShiftId(dayAvailability.shifts.id);
               }
             }}
-            onDelete={(id) => deleteMutation.mutate(id)}
+            onDelete={handleDelete}
             onAdd={handleAddAvailability}
           />
         );
