@@ -8,12 +8,20 @@ const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const supabase = createClient(supabaseUrl, serviceRoleKey)
 
 Deno.serve(async (req) => {
+  // Handle CORS
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
 
   try {
-    const { weekStartDate } = await req.json()
+    // Clone the request before reading the body
+    const reqClone = req.clone()
+    const { weekStartDate, userId } = await reqClone.json()
+    
+    if (!weekStartDate || !userId) {
+      throw new Error('weekStartDate and userId are required')
+    }
+
     const startDate = new Date(weekStartDate)
     const endDate = addDays(startDate, 6)
 
@@ -38,14 +46,14 @@ Deno.serve(async (req) => {
       .insert({
         week_start_date: format(startDate, 'yyyy-MM-dd'),
         status: 'draft',
-        created_by: (await req.json()).userId,
+        created_by: userId,
       })
       .select()
       .single()
 
     if (scheduleError) throw scheduleError
 
-    // Generate and insert shifts (simplified version)
+    // Generate and insert shifts
     const shifts = coverage.flatMap(req => 
       Array.from({ length: 7 }, (_, day) => {
         const date = addDays(startDate, day)
@@ -79,6 +87,7 @@ Deno.serve(async (req) => {
       },
     )
   } catch (error) {
+    console.error('Error generating schedule:', error)
     return new Response(
       JSON.stringify({ error: error.message }),
       { 
