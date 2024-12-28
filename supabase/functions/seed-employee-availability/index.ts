@@ -30,37 +30,7 @@ Deno.serve(async (req) => {
 
     console.log(`Found ${employees.length} employees`)
 
-    // Get or create shifts for different times of day
-    const shifts = [
-      { name: 'Morning', start_time: '06:00', end_time: '14:00' },
-      { name: 'Afternoon', start_time: '14:00', end_time: '22:00' },
-      { name: 'Night', start_time: '22:00', end_time: '06:00' },
-      { name: 'Part Time AM', start_time: '09:00', end_time: '13:00' },
-      { name: 'Part Time PM', start_time: '17:00', end_time: '21:00' },
-    ]
-
-    // Create shifts if they don't exist
-    for (const shift of shifts) {
-      const { data: existingShift } = await supabase
-        .from('shifts')
-        .select('id')
-        .eq('name', shift.name)
-        .single()
-
-      if (!existingShift) {
-        console.log(`Creating shift: ${shift.name}`)
-        const { error: createShiftError } = await supabase
-          .from('shifts')
-          .insert(shift)
-
-        if (createShiftError) {
-          console.error(`Error creating shift ${shift.name}:`, createShiftError)
-          throw createShiftError
-        }
-      }
-    }
-
-    // Get all shifts after creation
+    // Get existing shifts
     const { data: allShifts, error: shiftsError } = await supabase
       .from('shifts')
       .select('*')
@@ -70,13 +40,17 @@ Deno.serve(async (req) => {
       throw shiftsError
     }
 
+    if (allShifts.length === 0) {
+      throw new Error('No shifts found. Please create shifts first.')
+    }
+
     console.log(`Found ${allShifts.length} shifts`)
 
-    // Delete existing availability entries - Fixed the deletion query
+    // Delete existing availability entries
     const { error: deleteError } = await supabase
       .from('employee_availability')
       .delete()
-      .neq('id', '00000000-0000-0000-0000-000000000000') // Using a valid UUID comparison
+      .neq('id', '00000000-0000-0000-0000-000000000000')
 
     if (deleteError) {
       console.error('Error deleting existing availability:', deleteError)
