@@ -7,12 +7,23 @@ export function useAvailabilityMutations(employeeId: string) {
 
   const createMutation = useMutation({
     mutationFn: async ({ dayOfWeek, shiftId }: { dayOfWeek: number; shiftId: string }) => {
+      // First, get the shift details
+      const { data: shift } = await supabase
+        .from('shifts')
+        .select('*')
+        .eq('id', shiftId)
+        .single();
+
+      if (!shift) throw new Error('Shift not found');
+
       const { data, error } = await supabase
         .from('employee_availability')
         .insert({
           employee_id: employeeId,
           day_of_week: dayOfWeek,
           shift_id: shiftId,
+          start_time: shift.start_time,
+          end_time: shift.end_time,
         })
         .select()
         .maybeSingle();
@@ -34,10 +45,21 @@ export function useAvailabilityMutations(employeeId: string) {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, shiftId }: { id: string; shiftId: string }) => {
+      // First, get the shift details
+      const { data: shift } = await supabase
+        .from('shifts')
+        .select('*')
+        .eq('id', shiftId)
+        .single();
+
+      if (!shift) throw new Error('Shift not found');
+
       const { error } = await supabase
         .from('employee_availability')
         .update({ 
           shift_id: shiftId,
+          start_time: shift.start_time,
+          end_time: shift.end_time,
           updated_at: new Date().toISOString(),
         })
         .eq('id', id);

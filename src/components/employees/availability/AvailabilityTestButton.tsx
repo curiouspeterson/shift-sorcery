@@ -55,6 +55,8 @@ export function AvailabilityTestButton({ employeeId }: AvailabilityTestButtonPro
               employee_id: employeeId,
               day_of_week: dayOfWeek,
               shift_id: selectedShift.id,
+              start_time: selectedShift.start_time,
+              end_time: selectedShift.end_time,
             });
         });
         
@@ -93,6 +95,8 @@ export function AvailabilityTestButton({ employeeId }: AvailabilityTestButtonPro
                 employee_id: employeeId,
                 day_of_week: dayOfWeek,
                 shift_id: selectedTwelveHourShift.id,
+                start_time: selectedTwelveHourShift.start_time,
+                end_time: selectedTwelveHourShift.end_time,
               });
           }),
           // One 4-hour shift
@@ -102,6 +106,8 @@ export function AvailabilityTestButton({ employeeId }: AvailabilityTestButtonPro
               employee_id: employeeId,
               day_of_week: (startDay + 3) % 7,
               shift_id: selectedFourHourShift.id,
+              start_time: selectedFourHourShift.start_time,
+              end_time: selectedFourHourShift.end_time,
             })
         ];
         
