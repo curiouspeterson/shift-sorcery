@@ -46,19 +46,11 @@ export default function EmployeesView() {
   const handleSeedEmployees = async () => {
     try {
       setIsSeeding(true);
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/seed-employees`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          },
-        }
-      );
+      const { error } = await supabase.functions.invoke('seed-employees', {
+        method: 'POST'
+      });
       
-      const data = await response.json();
-      
-      if (data.error) throw new Error(data.error);
+      if (error) throw error;
       
       toast({
         title: "Success",
