@@ -20,14 +20,25 @@ export function ShiftLabel({ shiftType, currentStaff, minStaff, date }: ShiftLab
     queryKey: ['shifts-by-type', shiftType],
     queryFn: async () => {
       const startHour = getStartHourForShiftType(shiftType);
-      const { data, error } = await supabase
+      let query = supabase
         .from('shifts')
         .select('*')
-        .gte('start_time', `${startHour}:00`)
-        .lt('start_time', `${startHour + 8}:00`)
         .order('start_time');
       
-      if (error) throw error;
+      // Handle the overnight shift case specially
+      if (startHour === 22) {
+        query = query.or(`start_time.gte.${startHour}:00,start_time.lt.23:59`);
+      } else {
+        const endHour = startHour + 8;
+        query = query.gte('start_time', `${startHour}:00`).lt('start_time', `${endHour}:00`);
+      }
+      
+      const { data, error } = await query;
+      
+      if (error) {
+        console.error('Error fetching shifts:', error);
+        throw error;
+      }
       return data;
     },
   });
