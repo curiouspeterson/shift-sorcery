@@ -19,6 +19,8 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
         }
 
         if (!session) {
+          // Clear any stale data
+          localStorage.removeItem('supabase.auth.token');
           navigate("/");
           return;
         }
@@ -26,6 +28,9 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
         // Verify the session is still valid
         const { error: userError } = await supabase.auth.getUser();
         if (userError) {
+          // If we get a 403 or user not found, clear everything and redirect
+          await supabase.auth.signOut();
+          localStorage.removeItem('supabase.auth.token');
           throw userError;
         }
       } catch (error: any) {
@@ -33,7 +38,9 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
         toast.error("Authentication error", {
           description: "Please sign in again",
         });
+        // Ensure we're completely signed out
         await supabase.auth.signOut();
+        localStorage.removeItem('supabase.auth.token');
         navigate("/");
       } finally {
         setIsLoading(false);
@@ -44,6 +51,7 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_OUT' || !session) {
+        localStorage.removeItem('supabase.auth.token');
         navigate("/");
       }
     });

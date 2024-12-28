@@ -35,7 +35,9 @@ export function DashboardSidebar() {
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        if (userError) throw userError;
+        
         if (user) {
           const { data, error } = await supabase
             .from('profiles')
@@ -59,9 +61,14 @@ export function DashboardSidebar() {
           }
         }
       } catch (error: any) {
+        console.error("Profile error:", error);
         toast.error("Error loading profile", {
           description: error.message
         });
+        // If we get an auth error, sign out and redirect
+        if (error.status === 403) {
+          await handleLogout();
+        }
       } finally {
         setIsLoading(false);
       }
@@ -72,14 +79,20 @@ export function DashboardSidebar() {
 
   const handleLogout = async () => {
     try {
+      // Clear any stale data first
+      localStorage.removeItem('supabase.auth.token');
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
+      
       toast.success("Logged out successfully");
       navigate("/");
     } catch (error: any) {
+      console.error("Logout error:", error);
       toast.error("Error signing out", {
         description: error.message
       });
+      // Force navigation to login even if there was an error
+      navigate("/");
     }
   };
 
