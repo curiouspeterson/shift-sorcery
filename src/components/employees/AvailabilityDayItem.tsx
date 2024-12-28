@@ -9,6 +9,12 @@ interface AvailabilityDayItemProps {
     id: string;
     start_time: string;
     end_time: string;
+    shifts?: {
+      id: string;
+      name: string;
+      start_time: string;
+      end_time: string;
+    };
   };
   onEdit: (dayIndex: number) => void;
   onDelete: (id: string) => void;

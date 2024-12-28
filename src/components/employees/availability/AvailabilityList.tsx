@@ -12,7 +12,7 @@ export const DAYS_OF_WEEK = [
 
 interface AvailabilityListProps {
   availability: any[];
-  onEdit: (dayIndex: number, startTime?: string, endTime?: string) => void;
+  onEdit: (dayIndex: number, shift?: any) => void;
   onDelete: (id: string) => void;
   onAdd: (dayIndex: number) => void;
 }
@@ -37,11 +37,7 @@ export function AvailabilityList({
             dayIndex={index}
             availability={dayAvailability}
             onEdit={(dayIndex) => {
-              onEdit(
-                dayIndex,
-                dayAvailability?.start_time,
-                dayAvailability?.end_time
-              );
+              onEdit(dayIndex, dayAvailability?.shifts);
             }}
             onDelete={(id) => onDelete(id)}
             onAdd={onAdd}

@@ -1,23 +1,21 @@
 import { Button } from "@/components/ui/button";
-import { AvailabilityTimeSelect } from "../AvailabilityTimeSelect";
+import { ShiftSelect } from "../ShiftSelect";
 import { DAYS_OF_WEEK } from "./AvailabilityList";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 interface AvailabilityEditorProps {
   editingDay: number | null;
-  startTime: string;
-  endTime: string;
-  onStartTimeChange: (value: string) => void;
-  onEndTimeChange: (value: string) => void;
+  selectedShiftId: string | null;
+  onShiftChange: (shiftId: string) => void;
   onCancel: () => void;
   onSave: () => void;
 }
 
 export function AvailabilityEditor({
   editingDay,
-  startTime,
-  endTime,
-  onStartTimeChange,
-  onEndTimeChange,
+  selectedShiftId,
+  onShiftChange,
   onCancel,
   onSave,
 }: AvailabilityEditorProps) {
@@ -28,16 +26,11 @@ export function AvailabilityEditor({
       <h3 className="font-medium">
         {`Edit ${DAYS_OF_WEEK[editingDay]} Availability`}
       </h3>
-      <div className="grid grid-cols-2 gap-4">
-        <AvailabilityTimeSelect
-          label="Start Time"
-          value={startTime}
-          onValueChange={onStartTimeChange}
-        />
-        <AvailabilityTimeSelect
-          label="End Time"
-          value={endTime}
-          onValueChange={onEndTimeChange}
+      <div className="space-y-4">
+        <ShiftSelect
+          label="Select Shift"
+          value={selectedShiftId}
+          onValueChange={onShiftChange}
         />
       </div>
       <div className="flex justify-end gap-2">

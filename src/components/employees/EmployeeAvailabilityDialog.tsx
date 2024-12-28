@@ -26,8 +26,7 @@ export function EmployeeAvailabilityDialog({
   onOpenChange,
 }: EmployeeAvailabilityDialogProps) {
   const [editingDay, setEditingDay] = useState<number | null>(null);
-  const [startTime, setStartTime] = useState("09:00");
-  const [endTime, setEndTime] = useState("17:00");
+  const [selectedShiftId, setSelectedShiftId] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
   const { data: availability } = useQuery({
@@ -36,7 +35,7 @@ export function EmployeeAvailabilityDialog({
     queryFn: async () => {
       const { data, error } = await supabase
         .from('employee_availability')
-        .select('*')
+        .select('*, shifts (*)')
         .eq('employee_id', employee.id);
 
       if (error) {
@@ -67,12 +66,14 @@ export function EmployeeAvailabilityDialog({
 
   const handleAddAvailability = (dayOfWeek: number) => {
     setEditingDay(dayOfWeek);
-    setStartTime("09:00");
-    setEndTime("17:00");
+    setSelectedShiftId(null);
   };
 
-  const handleSave = () => {
-    if (editingDay === null) return;
+  const handleSave = async () => {
+    if (editingDay === null || !selectedShiftId) return;
+
+    const shift = shifts?.find(s => s.id === selectedShiftId);
+    if (!shift) return;
 
     const existingAvailability = availability?.find(
       (a) => a.day_of_week === editingDay
@@ -81,17 +82,18 @@ export function EmployeeAvailabilityDialog({
     if (existingAvailability) {
       updateMutation.mutate({
         id: existingAvailability.id,
-        startTime,
-        endTime,
+        startTime: shift.start_time,
+        endTime: shift.end_time,
       });
     } else {
       createMutation.mutate({
         dayOfWeek: editingDay,
-        startTime,
-        endTime,
+        startTime: shift.start_time,
+        endTime: shift.end_time,
       });
     }
     setEditingDay(null);
+    setSelectedShiftId(null);
   };
 
   const testAvailabilityMutation = useMutation({
@@ -226,10 +228,9 @@ export function EmployeeAvailabilityDialog({
 
         <AvailabilityList
           availability={availability || []}
-          onEdit={(dayIndex, existingStartTime, existingEndTime) => {
+          onEdit={(dayIndex, shift) => {
             setEditingDay(dayIndex);
-            if (existingStartTime) setStartTime(existingStartTime);
-            if (existingEndTime) setEndTime(existingEndTime);
+            setSelectedShiftId(shift?.id || null);
           }}
           onDelete={(id) => deleteMutation.mutate(id)}
           onAdd={handleAddAvailability}
@@ -237,11 +238,12 @@ export function EmployeeAvailabilityDialog({
 
         <AvailabilityEditor
           editingDay={editingDay}
-          startTime={startTime}
-          endTime={endTime}
-          onStartTimeChange={setStartTime}
-          onEndTimeChange={setEndTime}
-          onCancel={() => setEditingDay(null)}
+          selectedShiftId={selectedShiftId}
+          onShiftChange={setSelectedShiftId}
+          onCancel={() => {
+            setEditingDay(null);
+            setSelectedShiftId(null);
+          }}
           onSave={handleSave}
         />
       </DialogContent>
