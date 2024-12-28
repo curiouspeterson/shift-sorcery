@@ -1,6 +1,7 @@
 import { format, startOfWeek, addDays } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { CheckCircle, XCircle } from "lucide-react";
 
 interface ScheduleCalendarProps {
   selectedDate: Date;
@@ -16,7 +17,6 @@ export function ScheduleCalendar({
 
   const sortAssignmentsByShiftTime = (assignments: any[]) => {
     return [...assignments].sort((a, b) => {
-      // Convert shift times to comparable values (minutes since midnight)
       const getMinutes = (timeStr: string) => {
         const [hours, minutes] = timeStr.split(':').map(Number);
         return hours * 60 + minutes;
@@ -27,6 +27,38 @@ export function ScheduleCalendar({
       
       return aMinutes - bMinutes;
     });
+  };
+
+  const getShiftType = (startTime: string) => {
+    const hour = parseInt(startTime.split(':')[0]);
+    if (hour >= 4 && hour < 8) return "Day Shift Early";
+    if (hour >= 8 && hour < 16) return "Day Shift";
+    if (hour >= 16 && hour < 24) return "Swing Shift";
+    return "Graveyard";
+  };
+
+  const isMinimumStaffingMet = (assignments: any[], shiftType: string) => {
+    // Count staff for this shift type
+    const staffCount = assignments.filter(a => getShiftType(a.shift.start_time) === shiftType).length;
+    
+    // Get minimum requirement for this time period
+    // Note: This is a simplified check. You might want to make this more precise
+    const minStaff = 2; // Default minimum staffing requirement
+    
+    return staffCount >= minStaff;
+  };
+
+  const ShiftLabel = ({ shiftType, assignments }: { shiftType: string, assignments: any[] }) => {
+    const isMet = isMinimumStaffingMet(assignments, shiftType);
+    const Icon = isMet ? CheckCircle : XCircle;
+    const color = isMet ? "text-green-500" : "text-red-500";
+    
+    return (
+      <div className="flex items-center gap-1 text-sm">
+        <Icon className={`h-4 w-4 ${color}`} />
+        <span className={color}>{shiftType}</span>
+      </div>
+    );
   };
 
   return (
@@ -47,6 +79,12 @@ export function ScheduleCalendar({
             return (
               <div key={day.toISOString()} className="border-b pb-4 last:border-0">
                 <h3 className="font-medium mb-2">{format(day, "EEEE, MMM d")}</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
+                  <ShiftLabel shiftType="Day Shift Early" assignments={dayAssignments} />
+                  <ShiftLabel shiftType="Day Shift" assignments={dayAssignments} />
+                  <ShiftLabel shiftType="Swing Shift" assignments={dayAssignments} />
+                  <ShiftLabel shiftType="Graveyard" assignments={dayAssignments} />
+                </div>
                 <div className="space-y-2">
                   {sortedAssignments.map((assignment: any) => (
                     <div
