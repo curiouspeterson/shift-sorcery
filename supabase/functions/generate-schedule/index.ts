@@ -18,7 +18,13 @@ Deno.serve(async (req) => {
     const { weekStartDate, userId } = await req.json();
     console.log('📅 Generating schedule for:', { weekStartDate, userId });
 
+    if (!weekStartDate || !userId) {
+      console.error('❌ Missing required parameters');
+      throw new Error('Missing required parameters: weekStartDate and userId are required');
+    }
+
     const generator = new ScheduleGenerator();
+    console.log('🔄 Initializing schedule generation');
     const result = await generator.generateSchedule(weekStartDate, userId);
 
     console.log('✅ Schedule generation completed:', result);

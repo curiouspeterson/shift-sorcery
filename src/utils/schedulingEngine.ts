@@ -11,6 +11,7 @@ export async function generateScheduleForWeek(selectedDate: Date, userId: string
     const weekStartDate = format(startOfWeek(selectedDate), 'yyyy-MM-dd');
     
     // Check for existing schedule
+    console.log('🔍 Checking for existing schedule for week:', weekStartDate);
     const { data: existingSchedule, error: checkError } = await supabase
       .from('schedules')
       .select()
@@ -29,7 +30,12 @@ export async function generateScheduleForWeek(selectedDate: Date, userId: string
 
     console.log('✅ No existing schedule found, proceeding with generation');
 
-    const { error } = await supabase.functions.invoke('generate-schedule', {
+    console.log('📞 Calling generate-schedule edge function with params:', {
+      weekStartDate,
+      userId
+    });
+
+    const { data, error } = await supabase.functions.invoke('generate-schedule', {
       body: { 
         weekStartDate,
         userId 
@@ -41,7 +47,7 @@ export async function generateScheduleForWeek(selectedDate: Date, userId: string
       throw error;
     }
 
-    console.log('✅ Schedule generation completed successfully');
+    console.log('✅ Schedule generation completed successfully', data);
   } catch (error) {
     console.error('❌ Error generating schedule:', error);
     throw error;

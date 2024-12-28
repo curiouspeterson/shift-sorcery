@@ -30,6 +30,7 @@ export function ScheduleControls({
     });
 
     try {
+      console.log('🔄 Starting schedule generation');
       await generateScheduleForWeek(selectedDate, userId);
       
       console.log('🔄 Invalidating queries');
