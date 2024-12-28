@@ -17,15 +17,25 @@ export class ScheduleGenerator {
       console.log('\n=== Starting Schedule Generation ===');
       const data = await this.dataFetcher.fetchSchedulingData();
       
+      console.log('📊 Data fetched:', {
+        employeesCount: data.employees?.length || 0,
+        shiftsCount: data.shifts?.length || 0,
+        coverageReqsCount: data.coverageReqs?.length || 0,
+        availabilityCount: data.availability?.length || 0
+      });
+      
       if (!data.employees || data.employees.length === 0) {
+        console.error('❌ No employees available for scheduling');
         throw new Error('No employees available for scheduling');
       }
 
       if (!data.shifts || data.shifts.length === 0) {
+        console.error('❌ No shifts defined in the system');
         throw new Error('No shifts defined in the system');
       }
 
       const requirementsManager = new ShiftRequirementsManager(data.coverageReqs);
+      console.log('📋 Shift requirements initialized');
       
       let attemptCount = 0;
       let validSchedule = false;
@@ -37,12 +47,15 @@ export class ScheduleGenerator {
         console.log(`\n=== Attempt ${attemptCount} of ${SCHEDULING_CONSTANTS.MAX_SCHEDULING_ATTEMPTS} ===`);
         
         try {
+          console.log('🔄 Creating new schedule record');
           const schedule = await this.dataFetcher.createSchedule(weekStartDate, userId);
           scheduleId = schedule.id;
+          console.log('✅ Schedule record created:', scheduleId);
           
           const assignmentManager = new ShiftAssignmentManager(requirementsManager);
           const schedulingStrategy = new SchedulingStrategy(assignmentManager, requirementsManager);
           
+          console.log('🔄 Starting weekly schedule generation');
           const weekSuccess = await this.generateWeeklySchedule(
             weekStartDate,
             data,
@@ -52,7 +65,9 @@ export class ScheduleGenerator {
 
           if (weekSuccess) {
             console.log('\n✅ Successfully generated schedule for the week!');
-            await this.dataFetcher.saveAssignments(assignmentManager.getAssignments());
+            const assignments = assignmentManager.getAssignments();
+            console.log(`📊 Total assignments generated: ${assignments.length}`);
+            await this.dataFetcher.saveAssignments(assignments);
             validSchedule = true;
             break;
           } else {
@@ -93,8 +108,10 @@ export class ScheduleGenerator {
     schedulingStrategy: SchedulingStrategy,
     scheduleId: string
   ): Promise<boolean> {
+    console.log('\n=== Starting Weekly Schedule Generation ===');
     for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
       const currentDate = format(addDays(parseISO(weekStartDate), dayOffset), 'yyyy-MM-dd');
+      console.log(`\n🗓️ Processing date: ${currentDate}`);
       
       const dailySuccess = await schedulingStrategy.assignShiftsForDay(
         currentDate,
