@@ -24,11 +24,11 @@ export function DashboardSidebar() {
       navigate("/");
     } catch (error: any) {
       console.error("Logout error:", error);
-      toast.error("Error signing out", {
-        description: error.message
-      });
-      // Force navigation to login even if there was an error
+      // Even if there's an error, clear local auth data and redirect
       await clearAuthData();
+      toast.error("Error during logout", {
+        description: "You have been signed out locally"
+      });
       navigate("/");
     }
   };

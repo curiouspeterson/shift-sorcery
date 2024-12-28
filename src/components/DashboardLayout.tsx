@@ -17,35 +17,35 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
         
         if (sessionError) {
-          await clearAuthData();
           throw sessionError;
         }
 
         if (!session) {
-          await clearAuthData();
-          navigate("/");
-          return;
+          throw new Error("No session found");
         }
 
         // Verify the session is still valid
         const { error: userError } = await supabase.auth.getUser();
         if (userError) {
-          if (userError.status === 403) {
-            await clearAuthData();
-            toast.error("Session expired", {
-              description: "Please sign in again"
-            });
-            navigate("/");
-            return;
-          }
           throw userError;
         }
       } catch (error: any) {
         console.error("Auth error:", error);
+        // Clear auth data before showing error
         await clearAuthData();
-        toast.error("Authentication error", {
-          description: "Please sign in again"
-        });
+        
+        // Show appropriate error message
+        if (error.status === 403) {
+          toast.error("Session expired", {
+            description: "Please sign in again"
+          });
+        } else {
+          toast.error("Authentication error", {
+            description: "Please sign in again"
+          });
+        }
+        
+        // Always navigate to home after clearing auth
         navigate("/");
       } finally {
         setIsLoading(false);

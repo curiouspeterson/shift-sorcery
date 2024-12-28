@@ -9,7 +9,7 @@ export const clearAuthData = async () => {
       }
     });
     
-    // Force sign out even if the session is invalid
+    // Force local sign out without making server request
     await supabase.auth.signOut({ scope: 'local' });
   } catch (error) {
     console.error("Error clearing auth data:", error);
