@@ -30,28 +30,30 @@ export function AvailabilityDayItem({
   onAdd,
 }: AvailabilityDayItemProps) {
   return (
-    <div className="flex items-center justify-between p-2 bg-muted rounded-lg">
+    <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
       <span className="font-medium">{day}</span>
       {availability ? (
-        <div className="flex items-center gap-2">
-          <span>
+        <div className="flex items-center gap-4">
+          <span className="text-sm text-muted-foreground">
             {format(new Date(`2024-01-01T${availability.start_time}`), 'h:mm a')} -{' '}
             {format(new Date(`2024-01-01T${availability.end_time}`), 'h:mm a')}
           </span>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => onEdit(dayIndex)}
-          >
-            <Pencil className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => onDelete(availability.id)}
-          >
-            <Trash className="h-4 w-4" />
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => onEdit(dayIndex)}
+            >
+              <Pencil className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => onDelete(availability.id)}
+            >
+              <Trash className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       ) : (
         <Button
