@@ -7,8 +7,6 @@ interface AvailabilityDayItemProps {
   dayIndex: number;
   availability?: {
     id: string;
-    start_time: string;
-    end_time: string;
     shifts?: {
       id: string;
       name: string;
@@ -35,8 +33,8 @@ export function AvailabilityDayItem({
       {availability ? (
         <div className="flex items-center gap-4">
           <span className="text-sm text-muted-foreground">
-            {format(new Date(`2024-01-01T${availability.start_time}`), 'h:mm a')} -{' '}
-            {format(new Date(`2024-01-01T${availability.end_time}`), 'h:mm a')}
+            {availability.shifts?.name} ({format(new Date(`2024-01-01T${availability.shifts?.start_time}`), 'h:mm a')} -{' '}
+            {format(new Date(`2024-01-01T${availability.shifts?.end_time}`), 'h:mm a')})
           </span>
           <div className="flex items-center gap-2">
             <Button
