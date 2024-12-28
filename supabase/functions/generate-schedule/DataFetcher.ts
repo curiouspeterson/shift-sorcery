@@ -1,70 +1,88 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.7';
-import { SchedulingData } from './types.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0';
+
+const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
+const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 export class DataFetcher {
-  private supabase: any;
-
-  constructor() {
-    this.supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
-  }
-
-  async fetchSchedulingData(): Promise<SchedulingData> {
-    console.log('Fetching scheduling data...');
+  async fetchSchedulingData() {
     const [
-      { data: employees },
-      { data: shifts },
-      { data: coverageReqs },
-      { data: availability }
+      { data: employees, error: employeesError },
+      { data: shifts, error: shiftsError },
+      { data: coverageReqs, error: coverageError },
+      { data: availability, error: availabilityError }
     ] = await Promise.all([
-      this.supabase.from('profiles').select('*').eq('role', 'employee'),
-      this.supabase.from('shifts').select('*').order('start_time'),
-      this.supabase.from('coverage_requirements').select('*').order('start_time'),
-      this.supabase.from('employee_availability').select('*')
+      supabase.from('profiles').select('*'),
+      supabase.from('shifts').select('*'),
+      supabase.from('coverage_requirements').select('*'),
+      supabase.from('employee_availability').select('*')
     ]);
 
-    if (!employees || !shifts || !coverageReqs || !availability) {
-      throw new Error('Failed to fetch required data');
-    }
+    if (employeesError) throw employeesError;
+    if (shiftsError) throw shiftsError;
+    if (coverageError) throw coverageError;
+    if (availabilityError) throw availabilityError;
 
-    console.log(`Fetched data:
-      - ${employees.length} employees
-      - ${shifts.length} shift templates
-      - ${coverageReqs.length} coverage requirements
-      - ${availability.length} availability records`);
-
-    return { employees, shifts, coverageReqs, availability };
+    return {
+      employees,
+      shifts,
+      coverageReqs,
+      availability
+    };
   }
 
   async createSchedule(weekStartDate: string, userId: string) {
-    const { data: schedule } = await this.supabase
+    const { data, error } = await supabase
       .from('schedules')
-      .insert([{
-        week_start_date: weekStartDate,
-        status: 'draft',
-        created_by: userId,
-      }])
+      .insert([
+        {
+          week_start_date: weekStartDate,
+          status: 'draft',
+          created_by: userId
+        }
+      ])
       .select()
       .single();
 
-    if (!schedule) {
-      throw new Error('Failed to create schedule');
-    }
-
-    return schedule;
+    if (error) throw error;
+    return data;
   }
 
   async saveAssignments(assignments: any[]) {
-    if (assignments.length > 0) {
-      const { error: assignmentError } = await this.supabase
-        .from('schedule_assignments')
-        .insert(assignments);
+    if (assignments.length === 0) return;
 
-      if (assignmentError) {
-        throw assignmentError;
-      }
-    }
+    const { error } = await supabase
+      .from('schedule_assignments')
+      .insert(assignments);
+
+    if (error) throw error;
+  }
+
+  async deleteSchedule(scheduleId: string) {
+    // First delete all assignments
+    const { error: assignmentsError } = await supabase
+      .from('schedule_assignments')
+      .delete()
+      .eq('schedule_id', scheduleId);
+
+    if (assignmentsError) throw assignmentsError;
+
+    // Then delete the schedule
+    const { error: scheduleError } = await supabase
+      .from('schedules')
+      .delete()
+      .eq('id', scheduleId);
+
+    if (scheduleError) throw scheduleError;
+  }
+
+  async getAssignmentsCount(scheduleId: string): Promise<number> {
+    const { count, error } = await supabase
+      .from('schedule_assignments')
+      .select('*', { count: 'exact', head: true })
+      .eq('schedule_id', scheduleId);
+
+    if (error) throw error;
+    return count || 0;
   }
 }
