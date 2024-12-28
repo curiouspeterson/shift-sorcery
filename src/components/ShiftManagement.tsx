@@ -52,37 +52,42 @@ export function ShiftManagement() {
 
   const deleteShiftMutation = useMutation({
     mutationFn: async (shiftId: string) => {
-      // First, delete all schedule assignments that reference this shift
-      const { error: scheduleAssignmentsError } = await supabase
-        .from("schedule_assignments")
-        .delete()
-        .eq("shift_id", shiftId);
+      try {
+        // First, delete all schedule assignments that reference this shift
+        const { error: scheduleAssignmentsError } = await supabase
+          .from("schedule_assignments")
+          .delete()
+          .eq("shift_id", shiftId);
 
-      if (scheduleAssignmentsError) {
-        console.error("Error deleting schedule assignments:", scheduleAssignmentsError);
-        throw scheduleAssignmentsError;
-      }
+        if (scheduleAssignmentsError) {
+          console.error("Error deleting schedule assignments:", scheduleAssignmentsError);
+          throw scheduleAssignmentsError;
+        }
 
-      // Then, delete all employee availability records that reference this shift
-      const { error: availabilityError } = await supabase
-        .from("employee_availability")
-        .delete()
-        .eq("shift_id", shiftId);
+        // Then, delete all employee availability records that reference this shift
+        const { error: availabilityError } = await supabase
+          .from("employee_availability")
+          .delete()
+          .eq("shift_id", shiftId);
 
-      if (availabilityError) {
-        console.error("Error deleting employee availability:", availabilityError);
-        throw availabilityError;
-      }
+        if (availabilityError) {
+          console.error("Error deleting employee availability:", availabilityError);
+          throw availabilityError;
+        }
 
-      // Finally delete the shift itself
-      const { error: shiftError } = await supabase
-        .from("shifts")
-        .delete()
-        .eq("id", shiftId);
+        // Finally delete the shift itself
+        const { error: shiftError } = await supabase
+          .from("shifts")
+          .delete()
+          .eq("id", shiftId);
 
-      if (shiftError) {
-        console.error("Error deleting shift:", shiftError);
-        throw shiftError;
+        if (shiftError) {
+          console.error("Error deleting shift:", shiftError);
+          throw shiftError;
+        }
+      } catch (error: any) {
+        console.error("Delete shift error:", error);
+        throw error;
       }
     },
     onSuccess: () => {
