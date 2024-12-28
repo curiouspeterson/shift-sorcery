@@ -6,11 +6,12 @@ export function useAvailabilityMutations(employeeId: string) {
   const queryClient = useQueryClient();
 
   const invalidateQueries = () => {
-    // Invalidate all availability-related queries
+    // Invalidate both the specific employee's availability and all availability queries
+    queryClient.invalidateQueries({
+      queryKey: ['availability', employeeId],
+    });
     queryClient.invalidateQueries({
       queryKey: ['availability'],
-      exact: false,
-      refetchType: 'all'
     });
   };
 
