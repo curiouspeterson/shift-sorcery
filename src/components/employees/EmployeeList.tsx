@@ -28,10 +28,8 @@ export function EmployeeList() {
         .order('last_name', { ascending: true });
 
       if (error) {
-        toast({
-          title: "Error fetching employees",
+        toast("Error fetching employees", {
           description: error.message,
-          variant: "destructive",
         });
         return [];
       }
@@ -49,17 +47,14 @@ export function EmployeeList() {
       
       if (error) throw error;
       
-      toast({
-        title: "Success",
+      toast("Success", {
         description: "Successfully created 20 test employees",
       });
       
       await queryClient.invalidateQueries({ queryKey: ['employees'] });
     } catch (error: any) {
-      toast({
-        title: "Error seeding employees",
+      toast("Error seeding employees", {
         description: error.message,
-        variant: "destructive",
       });
     } finally {
       setIsSeeding(false);
@@ -75,15 +70,12 @@ export function EmployeeList() {
       
       if (error) throw error;
       
-      toast({
-        title: "Success",
+      toast("Success", {
         description: "Successfully added availability for all employees",
       });
     } catch (error: any) {
-      toast({
-        title: "Error seeding availability",
+      toast("Error seeding availability", {
         description: error.message,
-        variant: "destructive",
       });
     } finally {
       setIsSeedingAvailability(false);
@@ -137,8 +129,7 @@ export function EmployeeList() {
                   variant="outline"
                   className="w-full"
                   onClick={() => {
-                    toast({
-                      title: "Coming soon",
+                    toast("Coming soon", {
                       description: "This feature is not yet implemented.",
                     });
                   }}
@@ -149,8 +140,7 @@ export function EmployeeList() {
                   variant="outline"
                   className="w-full"
                   onClick={() => {
-                    toast({
-                      title: "Coming soon",
+                    toast("Coming soon", {
                       description: "This feature is not yet implemented.",
                     });
                   }}
