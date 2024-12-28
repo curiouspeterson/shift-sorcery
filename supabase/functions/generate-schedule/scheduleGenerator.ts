@@ -21,8 +21,25 @@ export class ScheduleGenerator {
   ): Promise<boolean> {
     console.log(`\n=== Processing ${format(new Date(currentDate), 'EEEE, MMM d')} ===`);
     
+    const dayOfWeek = new Date(currentDate).getDay();
     const shiftTypes = ["Day Shift Early", "Day Shift", "Swing Shift", "Graveyard"];
     let allRequirementsMet = true;
+
+    // Get all available employees for this day
+    const availableEmployees = data.employees.filter(employee => {
+      const hasAvailability = data.availability.some(a => 
+        a.employee_id === employee.id && 
+        a.day_of_week === dayOfWeek
+      );
+      return hasAvailability;
+    });
+
+    console.log(`Available employees for day: ${availableEmployees.length}`);
+
+    if (availableEmployees.length === 0) {
+      console.log('❌ No available employees for this day');
+      return false;
+    }
 
     // Process each shift type
     for (const shiftType of shiftTypes) {
@@ -38,23 +55,32 @@ export class ScheduleGenerator {
       const shiftsOfType = data.shifts.filter(s => getShiftType(s.start_time) === shiftType);
       let currentCount = 0;
       let attempts = 0;
-      const maxAttemptsPerShift = 10; // Allow multiple attempts per shift type
+      const maxAttemptsPerShift = 15; // Increased attempts per shift
 
       // Keep trying to assign employees until we meet requirements or exhaust attempts
       while (currentCount < required && attempts < maxAttemptsPerShift) {
         attempts++;
         console.log(`\nAttempt ${attempts} for ${shiftType} (Current: ${currentCount}/${required})`);
 
-        // Get all available employees who haven't been assigned today
-        const availableEmployees = data.employees
+        // Sort employees by weekly hours (prioritize those with fewer hours)
+        const availableForShift = availableEmployees
           .filter(employee => !assignmentManager.isEmployeeAssignedToday(employee.id))
-          .sort(() => Math.random() - 0.5); // Randomize employee order
+          .sort((a, b) => {
+            const hoursA = assignmentManager.getEmployeeWeeklyHours(a.id);
+            const hoursB = assignmentManager.getEmployeeWeeklyHours(b.id);
+            return hoursA - hoursB;
+          });
+
+        if (availableForShift.length === 0) {
+          console.log(`No more available employees for ${shiftType}`);
+          break;
+        }
 
         let assignedThisAttempt = false;
 
-        for (const employee of availableEmployees) {
+        for (const employee of availableForShift) {
           // Skip if employee would exceed weekly hours
-          const nextShift = shiftsOfType[0]; // Use first shift of type to check hours
+          const nextShift = shiftsOfType[0];
           if (!assignmentManager.canAssignShiftHours(employee.id, nextShift)) {
             console.log(`${employee.first_name} would exceed weekly hours limit`);
             continue;
@@ -66,7 +92,7 @@ export class ScheduleGenerator {
               employee,
               shift,
               data.availability,
-              new Date(currentDate).getDay()
+              dayOfWeek
             )) {
               assignmentManager.assignShift(scheduleId, employee, shift, currentDate);
               currentCount++;
@@ -76,13 +102,12 @@ export class ScheduleGenerator {
             }
           }
 
-          if (assignedThisAttempt) break;
+          if (assignedThisAttempt || currentCount >= required) break;
         }
 
         if (!assignedThisAttempt) {
           console.log(`❌ Could not assign any more employees to ${shiftType}`);
           if (currentCount < required) {
-            allRequirementsMet = false;
             console.log(`Failed to meet requirements for ${shiftType}: ${currentCount}/${required}`);
             return false;
           }

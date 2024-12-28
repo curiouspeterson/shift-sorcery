@@ -23,6 +23,10 @@ export class ShiftAssignmentManager {
     this.assignmentStorage = new AssignmentStorage();
   }
 
+  public getEmployeeWeeklyHours(employeeId: string): number {
+    return this.weeklyHoursTracker.getCurrentHours(employeeId);
+  }
+
   public isEmployeeAssignedToday(employeeId: string): boolean {
     return this.dailyTracker.isEmployeeAssignedToday(employeeId);
   }
