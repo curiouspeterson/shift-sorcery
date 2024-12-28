@@ -52,37 +52,44 @@ export function ShiftManagement() {
 
   const deleteShiftMutation = useMutation({
     mutationFn: async (shiftId: string) => {
-      // Delete schedule assignments first
-      const scheduleAssignments = await supabase
-        .from("schedule_assignments")
-        .delete()
-        .eq("shift_id", shiftId);
-      
-      if (scheduleAssignments.error) {
-        throw new Error(`Failed to delete schedule assignments: ${scheduleAssignments.error.message}`);
-      }
+      try {
+        // Delete schedule assignments first
+        const { error: scheduleError } = await supabase
+          .from("schedule_assignments")
+          .delete()
+          .eq("shift_id", shiftId);
+        
+        if (scheduleError) {
+          throw new Error(`Failed to delete schedule assignments: ${scheduleError.message}`);
+        }
 
-      // Then delete employee availability
-      const employeeAvailability = await supabase
-        .from("employee_availability")
-        .delete()
-        .eq("shift_id", shiftId);
-      
-      if (employeeAvailability.error) {
-        throw new Error(`Failed to delete employee availability: ${employeeAvailability.error.message}`);
-      }
+        // Then delete employee availability
+        const { error: availabilityError } = await supabase
+          .from("employee_availability")
+          .delete()
+          .eq("shift_id", shiftId);
+        
+        if (availabilityError) {
+          throw new Error(`Failed to delete employee availability: ${availabilityError.message}`);
+        }
 
-      // Finally delete the shift
-      const shift = await supabase
-        .from("shifts")
-        .delete()
-        .eq("id", shiftId);
-      
-      if (shift.error) {
-        throw new Error(`Failed to delete shift: ${shift.error.message}`);
-      }
+        // Finally delete the shift
+        const { error: shiftError } = await supabase
+          .from("shifts")
+          .delete()
+          .eq("id", shiftId);
+        
+        if (shiftError) {
+          throw new Error(`Failed to delete shift: ${shiftError.message}`);
+        }
 
-      return true;
+        return true;
+      } catch (error) {
+        if (error instanceof Error) {
+          throw new Error(error.message);
+        }
+        throw new Error('An unexpected error occurred while deleting the shift');
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["shifts"] });
