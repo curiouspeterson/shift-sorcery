@@ -14,6 +14,21 @@ export function ScheduleCalendar({
 }: ScheduleCalendarProps) {
   const weekStart = startOfWeek(selectedDate);
 
+  const sortAssignmentsByShiftTime = (assignments: any[]) => {
+    return [...assignments].sort((a, b) => {
+      // Convert shift times to comparable values (minutes since midnight)
+      const getMinutes = (timeStr: string) => {
+        const [hours, minutes] = timeStr.split(':').map(Number);
+        return hours * 60 + minutes;
+      };
+      
+      const aMinutes = getMinutes(a.shift.start_time);
+      const bMinutes = getMinutes(b.shift.start_time);
+      
+      return aMinutes - bMinutes;
+    });
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -21,16 +36,19 @@ export function ScheduleCalendar({
       </CardHeader>
       <CardContent>
         <div className="space-y-6">
-          {Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)).map((day) => (
-            <div key={day.toISOString()} className="border-b pb-4 last:border-0">
-              <h3 className="font-medium mb-2">{format(day, "EEEE, MMM d")}</h3>
-              <div className="space-y-2">
-                {scheduleData?.schedule_assignments
-                  ?.filter(
-                    (assignment: any) =>
-                      assignment.date === format(day, "yyyy-MM-dd")
-                  )
-                  .map((assignment: any) => (
+          {Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)).map((day) => {
+            const dayAssignments = scheduleData?.schedule_assignments?.filter(
+              (assignment: any) =>
+                assignment.date === format(day, "yyyy-MM-dd")
+            ) || [];
+
+            const sortedAssignments = sortAssignmentsByShiftTime(dayAssignments);
+
+            return (
+              <div key={day.toISOString()} className="border-b pb-4 last:border-0">
+                <h3 className="font-medium mb-2">{format(day, "EEEE, MMM d")}</h3>
+                <div className="space-y-2">
+                  {sortedAssignments.map((assignment: any) => (
                     <div
                       key={assignment.id}
                       className="flex items-center justify-between bg-muted p-2 rounded-lg"
@@ -57,18 +75,16 @@ export function ScheduleCalendar({
                       </span>
                     </div>
                   ))}
-                {(!scheduleData?.schedule_assignments ||
-                  !scheduleData.schedule_assignments.some(
-                    (assignment: any) =>
-                      assignment.date === format(day, "yyyy-MM-dd")
-                  )) && (
-                  <p className="text-sm text-muted-foreground">
-                    No shifts scheduled
-                  </p>
-                )}
+                  {(!scheduleData?.schedule_assignments ||
+                    !dayAssignments.length) && (
+                    <p className="text-sm text-muted-foreground">
+                      No shifts scheduled
+                    </p>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </CardContent>
     </Card>
