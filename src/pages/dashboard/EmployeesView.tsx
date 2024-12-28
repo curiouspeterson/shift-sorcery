@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
+import { CreateEmployeeDialog } from "@/components/CreateEmployeeDialog";
 import type { Database } from "@/integrations/supabase/types";
 
 type Profile = Database['public']['Tables']['profiles']['Row'];
@@ -71,7 +72,6 @@ export default function EmployeesView() {
                   variant="outline"
                   className="w-full"
                   onClick={() => {
-                    // TODO: Implement view availability
                     toast({
                       title: "Coming soon",
                       description: "This feature is not yet implemented.",
@@ -84,7 +84,6 @@ export default function EmployeesView() {
                   variant="outline"
                   className="w-full"
                   onClick={() => {
-                    // TODO: Implement view schedule
                     toast({
                       title: "Coming soon",
                       description: "This feature is not yet implemented.",
@@ -98,6 +97,11 @@ export default function EmployeesView() {
           </Card>
         ))}
       </div>
+
+      <CreateEmployeeDialog
+        open={isCreating}
+        onOpenChange={setIsCreating}
+      />
     </div>
   );
 }
