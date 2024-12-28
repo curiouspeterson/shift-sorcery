@@ -55,7 +55,7 @@ export default function ScheduleView() {
           )
         `)
         .eq('week_start_date', format(weekStart, 'yyyy-MM-dd'))
-        .single();
+        .maybeSingle();
 
       return schedule;
     }
