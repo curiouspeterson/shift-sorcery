@@ -6,83 +6,158 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 export class DataFetcher {
   async fetchSchedulingData() {
-    const [
-      { data: employees, error: employeesError },
-      { data: shifts, error: shiftsError },
-      { data: coverageReqs, error: coverageError },
-      { data: availability, error: availabilityError }
-    ] = await Promise.all([
-      supabase.from('profiles').select('*'),
-      supabase.from('shifts').select('*'),
-      supabase.from('coverage_requirements').select('*'),
-      supabase.from('employee_availability').select('*')
-    ]);
+    console.log('🔄 Starting data fetch...');
+    
+    try {
+      const [
+        employeesResult,
+        shiftsResult,
+        coverageResult,
+        availabilityResult
+      ] = await Promise.all([
+        supabase.from('profiles').select('*'),
+        supabase.from('shifts').select('*'),
+        supabase.from('coverage_requirements').select('*'),
+        supabase.from('employee_availability').select('*')
+      ]);
 
-    if (employeesError) throw employeesError;
-    if (shiftsError) throw shiftsError;
-    if (coverageError) throw coverageError;
-    if (availabilityError) throw availabilityError;
+      // Log any errors from individual queries
+      if (employeesResult.error) console.error('❌ Employees fetch error:', employeesResult.error);
+      if (shiftsResult.error) console.error('❌ Shifts fetch error:', shiftsResult.error);
+      if (coverageResult.error) console.error('❌ Coverage requirements fetch error:', coverageResult.error);
+      if (availabilityResult.error) console.error('❌ Availability fetch error:', availabilityResult.error);
 
-    return {
-      employees,
-      shifts,
-      coverageReqs,
-      availability
-    };
+      // Throw first error encountered
+      if (employeesResult.error) throw employeesResult.error;
+      if (shiftsResult.error) throw shiftsResult.error;
+      if (coverageResult.error) throw coverageResult.error;
+      if (availabilityResult.error) throw availabilityResult.error;
+
+      console.log('✅ Data fetch successful:', {
+        employees: employeesResult.data?.length || 0,
+        shifts: shiftsResult.data?.length || 0,
+        coverage: coverageResult.data?.length || 0,
+        availability: availabilityResult.data?.length || 0
+      });
+
+      return {
+        employees: employeesResult.data,
+        shifts: shiftsResult.data,
+        coverageReqs: coverageResult.data,
+        availability: availabilityResult.data
+      };
+    } catch (error) {
+      console.error('❌ Data fetch failed:', error);
+      throw error;
+    }
   }
 
   async createSchedule(weekStartDate: string, userId: string) {
-    const { data, error } = await supabase
-      .from('schedules')
-      .insert([
-        {
-          week_start_date: weekStartDate,
-          status: 'draft',
-          created_by: userId
-        }
-      ])
-      .select()
-      .single();
+    console.log('🔄 Creating schedule for:', { weekStartDate, userId });
+    
+    try {
+      const { data, error } = await supabase
+        .from('schedules')
+        .insert([
+          {
+            week_start_date: weekStartDate,
+            status: 'draft',
+            created_by: userId
+          }
+        ])
+        .select()
+        .single();
 
-    if (error) throw error;
-    return data;
+      if (error) {
+        console.error('❌ Schedule creation failed:', error);
+        throw error;
+      }
+
+      console.log('✅ Schedule created:', data);
+      return data;
+    } catch (error) {
+      console.error('❌ Schedule creation error:', error);
+      throw error;
+    }
   }
 
   async saveAssignments(assignments: any[]) {
-    if (assignments.length === 0) return;
+    if (assignments.length === 0) {
+      console.log('ℹ️ No assignments to save');
+      return;
+    }
 
-    const { error } = await supabase
-      .from('schedule_assignments')
-      .insert(assignments);
+    console.log(`🔄 Saving ${assignments.length} assignments...`);
+    
+    try {
+      const { error } = await supabase
+        .from('schedule_assignments')
+        .insert(assignments);
 
-    if (error) throw error;
+      if (error) {
+        console.error('❌ Assignment save failed:', error);
+        throw error;
+      }
+
+      console.log('✅ Assignments saved successfully');
+    } catch (error) {
+      console.error('❌ Assignment save error:', error);
+      throw error;
+    }
   }
 
   async deleteSchedule(scheduleId: string) {
-    // First delete all assignments
-    const { error: assignmentsError } = await supabase
-      .from('schedule_assignments')
-      .delete()
-      .eq('schedule_id', scheduleId);
+    console.log('🔄 Deleting schedule:', scheduleId);
+    
+    try {
+      // First delete all assignments
+      const { error: assignmentsError } = await supabase
+        .from('schedule_assignments')
+        .delete()
+        .eq('schedule_id', scheduleId);
 
-    if (assignmentsError) throw assignmentsError;
+      if (assignmentsError) {
+        console.error('❌ Assignments deletion failed:', assignmentsError);
+        throw assignmentsError;
+      }
 
-    // Then delete the schedule
-    const { error: scheduleError } = await supabase
-      .from('schedules')
-      .delete()
-      .eq('id', scheduleId);
+      // Then delete the schedule
+      const { error: scheduleError } = await supabase
+        .from('schedules')
+        .delete()
+        .eq('id', scheduleId);
 
-    if (scheduleError) throw scheduleError;
+      if (scheduleError) {
+        console.error('❌ Schedule deletion failed:', scheduleError);
+        throw scheduleError;
+      }
+
+      console.log('✅ Schedule and assignments deleted successfully');
+    } catch (error) {
+      console.error('❌ Schedule deletion error:', error);
+      throw error;
+    }
   }
 
   async getAssignmentsCount(scheduleId: string): Promise<number> {
-    const { count, error } = await supabase
-      .from('schedule_assignments')
-      .select('*', { count: 'exact', head: true })
-      .eq('schedule_id', scheduleId);
+    console.log('🔄 Getting assignments count for schedule:', scheduleId);
+    
+    try {
+      const { count, error } = await supabase
+        .from('schedule_assignments')
+        .select('*', { count: 'exact', head: true })
+        .eq('schedule_id', scheduleId);
 
-    if (error) throw error;
-    return count || 0;
+      if (error) {
+        console.error('❌ Assignments count failed:', error);
+        throw error;
+      }
+
+      console.log('✅ Assignments count:', count);
+      return count || 0;
+    } catch (error) {
+      console.error('❌ Assignments count error:', error);
+      throw error;
+    }
   }
 }
