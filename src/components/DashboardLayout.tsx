@@ -13,6 +13,7 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
   useEffect(() => {
     const checkAuth = async () => {
       try {
+        // First check if we have a session
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
         
         if (sessionError) {
@@ -29,15 +30,22 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
         // Verify the session is still valid
         const { error: userError } = await supabase.auth.getUser();
         if (userError) {
-          await clearAuthData();
+          if (userError.status === 403) {
+            await clearAuthData();
+            toast.error("Session expired", {
+              description: "Please sign in again"
+            });
+            navigate("/");
+            return;
+          }
           throw userError;
         }
       } catch (error: any) {
         console.error("Auth error:", error);
-        toast.error("Authentication error", {
-          description: "Please sign in again",
-        });
         await clearAuthData();
+        toast.error("Authentication error", {
+          description: "Please sign in again"
+        });
         navigate("/");
       } finally {
         setIsLoading(false);

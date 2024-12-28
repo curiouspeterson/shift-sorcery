@@ -8,7 +8,9 @@ export const clearAuthData = async () => {
         localStorage.removeItem(key);
       }
     });
-    await supabase.auth.signOut();
+    
+    // Force sign out even if the session is invalid
+    await supabase.auth.signOut({ scope: 'local' });
   } catch (error) {
     console.error("Error clearing auth data:", error);
   }
