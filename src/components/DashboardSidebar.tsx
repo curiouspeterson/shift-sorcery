@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/sidebar";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 import type { Database } from "@/integrations/supabase/types";
 
 type Profile = Database['public']['Tables']['profiles']['Row'];
@@ -29,20 +30,40 @@ export function DashboardSidebar() {
   const navigate = useNavigate();
   const location = useLocation();
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const fetchProfile = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', user.id)
-          .single();
-        
-        if (data) {
-          setProfile(data);
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data, error } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', user.id)
+            .maybeSingle();
+          
+          if (error) {
+            toast.error("Error fetching profile", {
+              description: error.message
+            });
+            return;
+          }
+          
+          if (data) {
+            setProfile(data);
+          } else {
+            toast.error("Profile not found", {
+              description: "Please contact your administrator"
+            });
+          }
         }
+      } catch (error: any) {
+        toast.error("Error loading profile", {
+          description: error.message
+        });
+      } finally {
+        setIsLoading(false);
       }
     };
 
@@ -88,6 +109,22 @@ export function DashboardSidebar() {
       },
     ] : []),
   ];
+
+  if (isLoading) {
+    return (
+      <Sidebar>
+        <SidebarHeader className="border-b border-border p-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold">ScheduleMe</h2>
+            <SidebarTrigger />
+          </div>
+        </SidebarHeader>
+        <SidebarContent>
+          <div className="p-4">Loading...</div>
+        </SidebarContent>
+      </Sidebar>
+    );
+  }
 
   return (
     <Sidebar>
