@@ -1,6 +1,5 @@
 import { format, addDays, parseISO } from 'https://esm.sh/date-fns@3.3.1';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.7';
-import { SCHEDULING_CONSTANTS } from './constants.ts';
 
 export class ScheduleGenerator {
   private supabase: any;
@@ -50,38 +49,51 @@ export class ScheduleGenerator {
     availability: any[],
     requiredStaff: number,
     assignedEmployees: Set<string>
-  ): Promise<string[]> {
+  ): Promise<any[]> {
     console.log(`\nProcessing ${shiftType} for ${date}`);
     console.log(`Required staff: ${requiredStaff}`);
 
+    const assignments = [];
     const dayOfWeek = new Date(date).getDay();
-    const assignedForType: string[] = [];
     
     // Get shifts of this type
     const shiftsOfType = shifts.filter(s => this.getShiftType(s.start_time) === shiftType);
-    console.log(`Available shifts: ${shiftsOfType.length}`);
+    console.log(`Available shifts of type ${shiftType}: ${shiftsOfType.length}`);
 
     // Get available employees for this shift type
     const availableEmployees = employees.filter(employee => {
       // Skip if already assigned today
-      if (assignedEmployees.has(employee.id)) return false;
+      if (assignedEmployees.has(employee.id)) {
+        console.log(`${employee.first_name} already assigned today, skipping`);
+        return false;
+      }
 
       // Check if employee has availability for any shift of this type
-      return availability.some(a => 
+      const hasAvailability = availability.some(a => 
         a.employee_id === employee.id && 
         a.day_of_week === dayOfWeek &&
         shiftsOfType.some(shift => shift.id === a.shift_id)
       );
+
+      if (!hasAvailability) {
+        console.log(`${employee.first_name} not available for ${shiftType}`);
+      }
+
+      return hasAvailability;
     });
 
-    console.log(`Available employees: ${availableEmployees.length}`);
+    console.log(`Available employees for ${shiftType}: ${availableEmployees.length}`);
 
     // Randomize employee order
     const shuffledEmployees = [...availableEmployees].sort(() => Math.random() - 0.5);
 
     // Assign exactly the required number of staff
-    for (let i = 0; i < Math.min(requiredStaff, shuffledEmployees.length); i++) {
-      const employee = shuffledEmployees[i];
+    let assignedCount = 0;
+    for (const employee of shuffledEmployees) {
+      if (assignedCount >= requiredStaff) {
+        console.log(`Required staff met for ${shiftType} (${assignedCount}/${requiredStaff})`);
+        break;
+      }
       
       // Find matching shift from availability
       const employeeAvailability = availability.find(a => 
@@ -104,11 +116,16 @@ export class ScheduleGenerator {
         console.log(`Assigning ${employee.first_name} to ${shiftType} (${shift.start_time} - ${shift.end_time})`);
         
         assignedEmployees.add(employee.id);
-        assignedForType.push(assignment);
+        assignments.push(assignment);
+        assignedCount++;
       }
     }
 
-    return assignedForType;
+    if (assignedCount < requiredStaff) {
+      console.log(`⚠️ Warning: Could not meet minimum staffing for ${shiftType} (${assignedCount}/${requiredStaff})`);
+    }
+
+    return assignments;
   }
 
   public async generateSchedule(weekStartDate: string, userId: string) {
@@ -139,7 +156,7 @@ export class ScheduleGenerator {
         
         const assignedEmployees = new Set<string>();
 
-        // Process each shift type in order
+        // Process each shift type in sequence
         for (const shiftType of shiftTypes) {
           // Get required staff for this shift type
           const requirement = coverageReqs.find(req => {
@@ -174,6 +191,14 @@ export class ScheduleGenerator {
           allAssignments.push(...assignments);
         }
       }
+
+      // Delete any existing assignments for this schedule
+      const { error: deleteError } = await this.supabase
+        .from('schedule_assignments')
+        .delete()
+        .eq('schedule_id', schedule.id);
+
+      if (deleteError) throw deleteError;
 
       // Save all assignments
       if (allAssignments.length > 0) {
