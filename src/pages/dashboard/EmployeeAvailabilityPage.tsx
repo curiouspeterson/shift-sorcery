@@ -11,7 +11,7 @@ export default function EmployeeAvailabilityPage() {
   const { employeeId } = useParams();
   const navigate = useNavigate();
 
-  const { data: employee } = useQuery({
+  const { data: employee, isLoading } = useQuery({
     queryKey: ['employee', employeeId],
     enabled: !!employeeId,
     queryFn: async () => {
@@ -25,11 +25,13 @@ export default function EmployeeAvailabilityPage() {
         toast.error("Error fetching employee");
         return null;
       }
+      
       if (!data) {
         toast.error("Employee not found");
         navigate('/dashboard/employees');
         return null;
       }
+      
       return data;
     },
   });
@@ -74,6 +76,10 @@ export default function EmployeeAvailabilityPage() {
       return data;
     },
   });
+
+  if (isLoading) {
+    return <div>Loading...</div>;
+  }
 
   if (!employee) return null;
 
