@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format, startOfWeek } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
@@ -10,7 +10,7 @@ export function ScheduleGenerator() {
   const [userId, setUserId] = useState<string | null>(null);
 
   // Fetch user ID on component mount
-  useState(() => {
+  useEffect(() => {
     const fetchUserId = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
