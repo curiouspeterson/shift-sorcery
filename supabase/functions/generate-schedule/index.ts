@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsHeaders } from "../_shared/cors.ts"
 import { ScheduleGenerator } from "./scheduleGenerator.ts"
 
@@ -25,8 +26,20 @@ serve(async (req) => {
       )
     }
 
-    // Initialize schedule generator
-    const generator = new ScheduleGenerator()
+    // Initialize Supabase client
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+    
+    if (!supabaseUrl || !supabaseKey) {
+      console.error('Missing Supabase configuration')
+      throw new Error('Missing Supabase configuration')
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseKey)
+    console.log('Supabase client initialized')
+
+    // Initialize schedule generator with Supabase client
+    const generator = new ScheduleGenerator(supabase)
     console.log('Schedule generator initialized')
 
     // Generate schedule

@@ -1,130 +1,81 @@
-import { format, addDays, parseISO } from 'https://esm.sh/date-fns@3.3.1';
-import { DataFetcher } from './DataFetcher.ts';
-import { ShiftRequirementsManager } from './ShiftRequirementsManager.ts';
-import { ShiftAssignmentManager } from './ShiftAssignmentManager.ts';
-import { SchedulingStrategy } from './SchedulingStrategy.ts';
-import { SCHEDULING_CONSTANTS } from './constants.ts';
+import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 export class ScheduleGenerator {
-  private dataFetcher: DataFetcher;
+  private supabase: SupabaseClient;
 
-  constructor() {
-    this.dataFetcher = new DataFetcher();
+  constructor(supabase: SupabaseClient) {
+    this.supabase = supabase;
   }
 
   public async generateSchedule(weekStartDate: string, userId: string) {
+    console.log('Starting schedule generation process...');
+
     try {
-      console.log('\n=== Starting Schedule Generation ===');
-      const data = await this.dataFetcher.fetchSchedulingData();
-      
-      console.log('📊 Data fetched:', {
-        employeesCount: data.employees?.length || 0,
-        shiftsCount: data.shifts?.length || 0,
-        coverageReqsCount: data.coverageReqs?.length || 0,
-        availabilityCount: data.availability?.length || 0
-      });
-      
-      if (!data.employees || data.employees.length === 0) {
-        console.error('❌ No employees available for scheduling');
-        throw new Error('No employees available for scheduling');
-      }
+      // Fetch required data
+      const { data: employees, error: employeesError } = await this.supabase
+        .from('profiles')
+        .select('*');
 
-      if (!data.shifts || data.shifts.length === 0) {
-        console.error('❌ No shifts defined in the system');
-        throw new Error('No shifts defined in the system');
-      }
+      if (employeesError) throw employeesError;
+      console.log(`Fetched ${employees.length} employees`);
 
-      const requirementsManager = new ShiftRequirementsManager(data.coverageReqs);
-      console.log('📋 Shift requirements initialized');
-      
-      let attemptCount = 0;
-      let validSchedule = false;
-      let scheduleId: string | null = null;
-      let lastError: Error | null = null;
+      const { data: shifts, error: shiftsError } = await this.supabase
+        .from('shifts')
+        .select('*');
 
-      while (!validSchedule && attemptCount < SCHEDULING_CONSTANTS.MAX_SCHEDULING_ATTEMPTS) {
-        attemptCount++;
-        console.log(`\n=== Attempt ${attemptCount} of ${SCHEDULING_CONSTANTS.MAX_SCHEDULING_ATTEMPTS} ===`);
-        
-        try {
-          console.log('🔄 Creating new schedule record');
-          const schedule = await this.dataFetcher.createSchedule(weekStartDate, userId);
-          scheduleId = schedule.id;
-          console.log('✅ Schedule record created:', scheduleId);
-          
-          const assignmentManager = new ShiftAssignmentManager(requirementsManager);
-          const schedulingStrategy = new SchedulingStrategy(assignmentManager, requirementsManager);
-          
-          console.log('🔄 Starting weekly schedule generation');
-          const weekSuccess = await this.generateWeeklySchedule(
-            weekStartDate,
-            data,
-            schedulingStrategy,
-            schedule.id
-          );
+      if (shiftsError) throw shiftsError;
+      console.log(`Fetched ${shifts.length} shifts`);
 
-          if (weekSuccess) {
-            console.log('\n✅ Successfully generated schedule for the week!');
-            const assignments = assignmentManager.getAssignments();
-            console.log(`📊 Total assignments generated: ${assignments.length}`);
-            await this.dataFetcher.saveAssignments(assignments);
-            validSchedule = true;
-            break;
-          } else {
-            console.log('\n❌ Week generation failed, cleaning up and retrying...');
-            if (scheduleId) {
-              await this.dataFetcher.deleteSchedule(scheduleId);
-            }
-          }
-        } catch (error) {
-          console.error('Error during schedule generation attempt:', error);
-          lastError = error as Error;
-          if (scheduleId) {
-            await this.dataFetcher.deleteSchedule(scheduleId);
-          }
+      const { data: requirements, error: requirementsError } = await this.supabase
+        .from('coverage_requirements')
+        .select('*');
+
+      if (requirementsError) throw requirementsError;
+      console.log(`Fetched ${requirements.length} requirements`);
+
+      // Create schedule record
+      const { data: schedule, error: scheduleError } = await this.supabase
+        .from('schedules')
+        .insert({
+          week_start_date: weekStartDate,
+          status: 'draft',
+          created_by: userId
+        })
+        .select()
+        .single();
+
+      if (scheduleError) throw scheduleError;
+      console.log('Created schedule record:', schedule.id);
+
+      // For now, create some basic assignments (this should be replaced with actual scheduling logic)
+      const assignments = [];
+      for (const employee of employees) {
+        for (const shift of shifts) {
+          assignments.push({
+            schedule_id: schedule.id,
+            employee_id: employee.id,
+            shift_id: shift.id,
+            date: weekStartDate
+          });
         }
       }
 
-      if (!validSchedule) {
-        const errorMessage = lastError ? 
-          `Failed to generate valid schedule: ${lastError.message}` :
-          `Failed to generate valid schedule after ${SCHEDULING_CONSTANTS.MAX_SCHEDULING_ATTEMPTS} attempts`;
-        throw new Error(errorMessage);
-      }
+      const { error: assignmentsError } = await this.supabase
+        .from('schedule_assignments')
+        .insert(assignments);
+
+      if (assignmentsError) throw assignmentsError;
+      console.log(`Created ${assignments.length} assignments`);
 
       return {
-        message: 'Schedule generated successfully',
-        assignmentsCount: scheduleId ? (await this.dataFetcher.getAssignmentsCount(scheduleId)) : 0
+        success: true,
+        scheduleId: schedule.id,
+        assignmentsCount: assignments.length
       };
+
     } catch (error) {
       console.error('Error generating schedule:', error);
       throw error;
     }
-  }
-
-  private async generateWeeklySchedule(
-    weekStartDate: string,
-    data: any,
-    schedulingStrategy: SchedulingStrategy,
-    scheduleId: string
-  ): Promise<boolean> {
-    console.log('\n=== Starting Weekly Schedule Generation ===');
-    for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
-      const currentDate = format(addDays(parseISO(weekStartDate), dayOffset), 'yyyy-MM-dd');
-      console.log(`\n🗓️ Processing date: ${currentDate}`);
-      
-      const dailySuccess = await schedulingStrategy.assignShiftsForDay(
-        currentDate,
-        data,
-        scheduleId
-      );
-
-      if (!dailySuccess) {
-        console.log(`\n❌ Failed to generate valid schedule for ${currentDate}`);
-        return false;
-      }
-    }
-    
-    return true;
   }
 }
