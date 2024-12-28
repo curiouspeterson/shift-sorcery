@@ -9,9 +9,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
 import { CreateEmployeeDialog } from "@/components/CreateEmployeeDialog";
+import { TimeOffRequestsManager } from "@/components/TimeOffRequestsManager";
 import type { Database } from "@/integrations/supabase/types";
 
 type Profile = Database['public']['Tables']['profiles']['Row'];
@@ -101,7 +103,7 @@ export default function EmployeesView() {
   return (
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">Employees</h1>
+        <h1 className="text-2xl font-bold">Employee Management</h1>
         <div className="space-x-2">
           <Button 
             variant="outline"
@@ -124,48 +126,61 @@ export default function EmployeesView() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {employees?.map((employee) => (
-          <Card key={employee.id}>
-            <CardHeader>
-              <CardTitle>
-                {employee.first_name} {employee.last_name}
-              </CardTitle>
-              <CardDescription>
-                {employee.role.charAt(0).toUpperCase() + employee.role.slice(1)}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => {
-                    toast({
-                      title: "Coming soon",
-                      description: "This feature is not yet implemented.",
-                    });
-                  }}
-                >
-                  View Availability
-                </Button>
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => {
-                    toast({
-                      title: "Coming soon",
-                      description: "This feature is not yet implemented.",
-                    });
-                  }}
-                >
-                  View Schedule
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      <Tabs defaultValue="employees" className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="employees">Employees</TabsTrigger>
+          <TabsTrigger value="requests">Time Off Requests</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="employees">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {employees?.map((employee) => (
+              <Card key={employee.id}>
+                <CardHeader>
+                  <CardTitle>
+                    {employee.first_name} {employee.last_name}
+                  </CardTitle>
+                  <CardDescription>
+                    {employee.role.charAt(0).toUpperCase() + employee.role.slice(1)}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => {
+                        toast({
+                          title: "Coming soon",
+                          description: "This feature is not yet implemented.",
+                        });
+                      }}
+                    >
+                      View Availability
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => {
+                        toast({
+                          title: "Coming soon",
+                          description: "This feature is not yet implemented.",
+                        });
+                      }}
+                    >
+                      View Schedule
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="requests">
+          <TimeOffRequestsManager />
+        </TabsContent>
+      </Tabs>
 
       <CreateEmployeeDialog
         open={isCreating}
