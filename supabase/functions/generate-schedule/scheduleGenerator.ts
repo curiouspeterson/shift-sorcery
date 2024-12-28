@@ -12,98 +12,73 @@ export class ScheduleGenerator {
     this.dataFetcher = new DataFetcher();
   }
 
-  private validateScheduleRequirements(
+  private async generateDailySchedule(
+    currentDate: string,
+    data: any,
     assignmentManager: ShiftAssignmentManager,
-    requirementsManager: ShiftRequirementsManager
-  ): boolean {
+    requirementsManager: ShiftRequirementsManager,
+    scheduleId: string
+  ): Promise<boolean> {
+    console.log(`\n=== Processing ${format(new Date(currentDate), 'EEEE, MMM d')} ===`);
+    
     const shiftTypes = ["Day Shift Early", "Day Shift", "Swing Shift", "Graveyard"];
     let allRequirementsMet = true;
 
-    console.log("\n=== Validating Schedule Requirements ===");
-    
-    shiftTypes.forEach(shiftType => {
-      const currentCount = assignmentManager.getCurrentCounts()[shiftType] || 0;
+    // Process each shift type
+    for (const shiftType of shiftTypes) {
+      console.log(`\nProcessing ${shiftType}`);
       const required = requirementsManager.getRequiredStaffForShiftType(shiftType);
-      
-      console.log(`${shiftType}:`);
-      console.log(`- Required: ${required}`);
-      console.log(`- Assigned: ${currentCount}`);
-      
-      if (currentCount < required) {
-        console.log(`❌ Requirements not met for ${shiftType}`);
-        allRequirementsMet = false;
-      } else {
-        console.log(`✅ Requirements met for ${shiftType}`);
+      console.log(`Required staff: ${required}`);
+
+      if (required === 0) {
+        console.log(`No requirements for ${shiftType}, skipping`);
+        continue;
       }
-    });
 
-    return allRequirementsMet;
-  }
+      const shiftsOfType = data.shifts.filter(s => getShiftType(s.start_time) === shiftType);
+      let currentCount = 0;
 
-  private async generateScheduleAttempt(
-    weekStartDate: string,
-    userId: string,
-    data: any,
-    requirementsManager: ShiftRequirementsManager,
-    assignmentManager: ShiftAssignmentManager,
-    retryCount: number = 0
-  ): Promise<string | null> {
-    const schedule = await this.dataFetcher.createSchedule(weekStartDate, userId);
-    const shiftTypes = ["Day Shift Early", "Day Shift", "Swing Shift", "Graveyard"];
-    
-    // Process each day
-    for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
-      const currentDate = format(addDays(parseISO(weekStartDate), dayOffset), 'yyyy-MM-dd');
-      console.log(`\n=== Processing ${format(new Date(currentDate), 'EEEE, MMM d')} ===`);
-      
-      assignmentManager.resetDailyCounts();
-      let dailyRequirementsMet = false;
-      let dailyAttempts = 0;
-      const MAX_DAILY_ATTEMPTS = 3;
+      // Keep trying to assign employees until we meet requirements
+      while (currentCount < required) {
+        let assigned = false;
+        const availableEmployees = [...data.employees]
+          .sort(() => Math.random() - 0.5)
+          .filter(employee => !assignmentManager.isEmployeeAssignedToday(employee.id));
 
-      while (!dailyRequirementsMet && dailyAttempts < MAX_DAILY_ATTEMPTS) {
-        dailyAttempts++;
-        console.log(`\n=== Daily Attempt ${dailyAttempts} ===`);
-
-        // Process each shift type in sequence
-        for (const shiftType of shiftTypes) {
-          const shiftsOfType = data.shifts.filter(s => getShiftType(s.start_time) === shiftType);
-          const shuffledEmployees = [...data.employees].sort(() => Math.random() - 0.5);
-          const required = requirementsManager.getRequiredStaffForShiftType(shiftType);
-
-          console.log(`\nProcessing ${shiftType} - Required staff: ${required}`);
-
-          for (const employee of shuffledEmployees) {
-            if (assignmentManager.getCurrentCounts()[shiftType] >= required) {
-              break; // Move to next shift type once requirements are met
-            }
-
-            for (const shift of shiftsOfType) {
-              if (assignmentManager.canAssignShift(
-                employee,
-                shift,
-                data.availability,
-                new Date(currentDate).getDay()
-              )) {
-                assignmentManager.assignShift(schedule.id, employee, shift, currentDate);
-                break; // Move to next employee after successful assignment
-              }
+        for (const employee of availableEmployees) {
+          for (const shift of shiftsOfType) {
+            if (assignmentManager.canAssignShift(
+              employee,
+              shift,
+              data.availability,
+              new Date(currentDate).getDay()
+            )) {
+              assignmentManager.assignShift(scheduleId, employee, shift, currentDate);
+              currentCount++;
+              assigned = true;
+              console.log(`✅ Assigned ${employee.first_name} to ${shiftType}`);
+              break;
             }
           }
+          if (assigned) break;
         }
 
-        // Check if all requirements for the day are met
-        dailyRequirementsMet = assignmentManager.areAllRequirementsMet();
+        if (!assigned) {
+          console.log(`❌ Could not meet requirements for ${shiftType}`);
+          allRequirementsMet = false;
+          break;
+        }
+
+        if (currentCount >= required) {
+          console.log(`✅ Met requirements for ${shiftType}: ${currentCount}/${required}`);
+          break;
+        }
       }
 
-      if (!dailyRequirementsMet && retryCount < SCHEDULING_CONSTANTS.MAX_SCHEDULING_ATTEMPTS - 1) {
-        console.log(`\n❌ Could not meet requirements for ${currentDate}, retrying schedule generation`);
-        await this.dataFetcher.deleteSchedule(schedule.id);
-        return null;
-      }
+      if (!allRequirementsMet) break;
     }
 
-    return schedule.id;
+    return allRequirementsMet;
   }
 
   public async generateSchedule(weekStartDate: string, userId: string) {
@@ -113,41 +88,47 @@ export class ScheduleGenerator {
       const requirementsManager = new ShiftRequirementsManager(data.coverageReqs);
       
       let attemptCount = 0;
-      let scheduleId: string | null = null;
       let validSchedule = false;
+      let scheduleId: string | null = null;
 
       while (!validSchedule && attemptCount < SCHEDULING_CONSTANTS.MAX_SCHEDULING_ATTEMPTS) {
         attemptCount++;
         console.log(`\n=== Attempt ${attemptCount} of ${SCHEDULING_CONSTANTS.MAX_SCHEDULING_ATTEMPTS} ===`);
         
-        const assignmentManager = new ShiftAssignmentManager(requirementsManager);
+        // Create new schedule
+        const schedule = await this.dataFetcher.createSchedule(weekStartDate, userId);
+        scheduleId = schedule.id;
         
-        // Generate schedule
-        scheduleId = await this.generateScheduleAttempt(
-          weekStartDate,
-          userId,
-          data,
-          requirementsManager,
-          assignmentManager,
-          attemptCount - 1
-        );
+        const assignmentManager = new ShiftAssignmentManager(requirementsManager);
+        let weekSuccess = true;
 
-        if (scheduleId === null) {
-          console.log('\n❌ Failed to generate valid schedule, retrying...');
-          continue;
+        // Process each day of the week
+        for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
+          const currentDate = format(addDays(parseISO(weekStartDate), dayOffset), 'yyyy-MM-dd');
+          
+          // Try to generate valid daily schedule
+          const dailySuccess = await this.generateDailySchedule(
+            currentDate,
+            data,
+            assignmentManager,
+            requirementsManager,
+            schedule.id
+          );
+
+          if (!dailySuccess) {
+            console.log(`\n❌ Failed to generate valid schedule for ${currentDate}`);
+            weekSuccess = false;
+            break;
+          }
         }
 
-        // Validate requirements
-        validSchedule = this.validateScheduleRequirements(assignmentManager, requirementsManager);
-        
-        if (validSchedule) {
-          console.log('\n✅ All shift requirements met!');
-          // Save assignments
+        if (weekSuccess) {
+          console.log('\n✅ Successfully generated schedule for the week!');
           await this.dataFetcher.saveAssignments(assignmentManager.getAssignments());
+          validSchedule = true;
           break;
         } else {
-          console.log('\n❌ Some shift requirements not met, retrying...');
-          // Delete failed schedule
+          console.log('\n❌ Week generation failed, cleaning up and retrying...');
           if (scheduleId) {
             await this.dataFetcher.deleteSchedule(scheduleId);
           }
@@ -158,7 +139,6 @@ export class ScheduleGenerator {
         throw new Error(`Failed to generate valid schedule after ${SCHEDULING_CONSTANTS.MAX_SCHEDULING_ATTEMPTS} attempts`);
       }
 
-      console.log(`\n=== Schedule Generation Complete ===`);
       return {
         message: 'Schedule generated successfully',
         assignmentsCount: scheduleId ? (await this.dataFetcher.getAssignmentsCount(scheduleId)) : 0
