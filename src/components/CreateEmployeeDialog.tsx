@@ -64,12 +64,12 @@ export function CreateEmployeeDialog({ open, onOpenChange }: CreateEmployeeDialo
       setIsLoading(true);
 
       const { error } = await fetch(
-        `${supabase.supabaseUrl}/functions/v1/create-employee`,
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/create-employee`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${supabase.supabaseKey}`,
+            'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
           },
           body: JSON.stringify(data),
         }

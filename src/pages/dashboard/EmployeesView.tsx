@@ -19,6 +19,7 @@ type Profile = Database['public']['Tables']['profiles']['Row'];
 export default function EmployeesView() {
   const { toast } = useToast();
   const [isCreating, setIsCreating] = useState(false);
+  const [isSeeding, setIsSeeding] = useState(false);
 
   const { data: employees, isLoading } = useQuery({
     queryKey: ['employees'],
@@ -41,6 +42,41 @@ export default function EmployeesView() {
     },
   });
 
+  const handleSeedEmployees = async () => {
+    try {
+      setIsSeeding(true);
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/seed-employees`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
+          },
+        }
+      );
+      
+      const data = await response.json();
+      
+      if (data.error) throw new Error(data.error);
+      
+      toast({
+        title: "Success",
+        description: "Successfully created 20 test employees",
+      });
+      
+      // Refresh the employees list
+      await queryClient.invalidateQueries({ queryKey: ['employees'] });
+    } catch (error: any) {
+      toast({
+        title: "Error seeding employees",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsSeeding(false);
+    }
+  };
+
   if (isLoading) {
     return <div className="p-6">Loading employees...</div>;
   }
@@ -49,10 +85,19 @@ export default function EmployeesView() {
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold">Employees</h1>
-        <Button onClick={() => setIsCreating(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add Employee
-        </Button>
+        <div className="space-x-2">
+          <Button 
+            variant="outline"
+            onClick={handleSeedEmployees}
+            disabled={isSeeding}
+          >
+            {isSeeding ? "Creating..." : "Add Test Employees"}
+          </Button>
+          <Button onClick={() => setIsCreating(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add Employee
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
