@@ -29,7 +29,7 @@ export function EmployeeAvailabilityDialog({
   const [selectedShiftId, setSelectedShiftId] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
-  const { data: availability } = useQuery({
+  const { data: availability, isLoading: isLoadingAvailability } = useQuery({
     queryKey: ['availability', employee?.id],
     enabled: !!employee,
     queryFn: async () => {
@@ -80,20 +80,30 @@ export function EmployeeAvailabilityDialog({
     );
 
     if (existingAvailability) {
-      updateMutation.mutate({
+      await updateMutation.mutateAsync({
         id: existingAvailability.id,
         startTime: shift.start_time,
         endTime: shift.end_time,
       });
     } else {
-      createMutation.mutate({
+      await createMutation.mutateAsync({
         dayOfWeek: editingDay,
         startTime: shift.start_time,
         endTime: shift.end_time,
       });
     }
+
+    // Reset state after successful mutation
     setEditingDay(null);
     setSelectedShiftId(null);
+    
+    // Manually invalidate queries to ensure UI updates
+    queryClient.invalidateQueries({ queryKey: ['availability', employee?.id] });
+  };
+
+  const handleDelete = async (id: string) => {
+    await deleteMutation.mutateAsync(id);
+    queryClient.invalidateQueries({ queryKey: ['availability', employee?.id] });
   };
 
   const testAvailabilityMutation = useMutation({
@@ -204,6 +214,10 @@ export function EmployeeAvailabilityDialog({
     },
   });
 
+  if (isLoadingAvailability) {
+    return <div>Loading...</div>;
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
@@ -232,7 +246,7 @@ export function EmployeeAvailabilityDialog({
             setEditingDay(dayIndex);
             setSelectedShiftId(shift?.id || null);
           }}
-          onDelete={(id) => deleteMutation.mutate(id)}
+          onDelete={handleDelete}
           onAdd={handleAddAvailability}
         />
 

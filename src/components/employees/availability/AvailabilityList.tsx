@@ -36,10 +36,8 @@ export function AvailabilityList({
             day={day}
             dayIndex={index}
             availability={dayAvailability}
-            onEdit={(dayIndex) => {
-              onEdit(dayIndex, dayAvailability?.shifts);
-            }}
-            onDelete={(id) => onDelete(id)}
+            onEdit={(dayIndex) => onEdit(dayIndex, dayAvailability?.shifts)}
+            onDelete={onDelete}
             onAdd={onAdd}
           />
         );
