@@ -1,12 +1,13 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.7';
 import { format, addDays, parseISO } from 'https://esm.sh/date-fns@3.3.1';
 import { CoverageTracker } from './coverageTracker.ts';
-import { getShiftType } from './shiftUtils.ts';
+import { getShiftType, getShiftDuration } from './shiftUtils.ts';
 import { Assignment, Employee, Shift, CoverageRequirement, Availability } from './types.ts';
 
 export class ScheduleGenerator {
   private supabase: any;
   private assignments: Assignment[] = [];
+  private employeesAssignedToday: Set<string> = new Set();
 
   constructor() {
     this.supabase = createClient(
@@ -31,19 +32,6 @@ export class ScheduleGenerator {
     if (!employees || !shifts || !coverageReqs || !availability) {
       throw new Error('Failed to fetch required data');
     }
-
-    // Log data for debugging
-    console.log('Available shifts:', shifts.map(s => ({
-      name: s.name,
-      time: `${s.start_time} - ${s.end_time}`,
-      type: getShiftType(s.start_time)
-    })));
-
-    console.log('Employee availability:', availability.map(a => ({
-      employee_id: a.employee_id,
-      day: a.day_of_week,
-      shift: shifts.find(s => s.id === a.shift_id)
-    })));
 
     return { employees, shifts, coverageReqs, availability };
   }
@@ -73,9 +61,9 @@ export class ScheduleGenerator {
     shifts: Shift[],
     availability: Availability[]
   ): boolean {
-    // Check if employee is already assigned that day
-    if (this.assignments.some(a => a.employee_id === employeeId && a.date === currentDate)) {
-      console.log(`${employeeId} already has a shift on ${currentDate}`);
+    // Check if employee has already been assigned a long shift today
+    if (this.employeesAssignedToday.has(employeeId)) {
+      console.log(`${employeeId} already assigned today - reserving for other shifts`);
       return false;
     }
 
@@ -107,14 +95,20 @@ export class ScheduleGenerator {
     currentDate: string,
     employeeId: string,
     shift: Shift,
-    coverageTracker: CoverageTracker,
-    shiftType: string
+    coverageTracker: CoverageTracker
   ): boolean {
-    // Verify shift type matches
-    const actualShiftType = getShiftType(shift.start_time);
-    if (actualShiftType !== shiftType) {
-      console.log(`Shift type mismatch for ${employeeId}. Expected ${shiftType}, got ${actualShiftType}`);
-      return false;
+    const shiftDuration = getShiftDuration(shift);
+    const shiftType = getShiftType(shift.start_time);
+
+    // For long shifts (>8 hours), check if we've already assigned too many
+    if (shiftDuration > 8) {
+      const longShiftCount = Array.from(this.employeesAssignedToday).length;
+      const maxLongShifts = 5; // Limit long shifts to ensure staff for other periods
+      
+      if (longShiftCount >= maxLongShifts) {
+        console.log(`Skipping long shift assignment - already at max (${maxLongShifts})`);
+        return false;
+      }
     }
 
     // Only assign if it helps meet coverage requirements
@@ -125,6 +119,12 @@ export class ScheduleGenerator {
         shift_id: shift.id,
         date: currentDate,
       });
+
+      // Track employees assigned to long shifts
+      if (shiftDuration > 8) {
+        this.employeesAssignedToday.add(employeeId);
+      }
+
       console.log(`Successfully assigned ${employeeId} to ${shift.name} (${shift.start_time} - ${shift.end_time}) on ${currentDate}`);
       return true;
     }
@@ -141,8 +141,11 @@ export class ScheduleGenerator {
     for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
       const currentDate = format(addDays(parseISO(weekStartDate), dayOffset), 'yyyy-MM-dd');
       console.log(`\nProcessing ${format(new Date(currentDate), 'EEEE, MMM d')}`);
+      
+      // Reset the daily employee tracking
+      this.employeesAssignedToday.clear();
 
-      // Process each shift type separately to ensure coverage
+      // Process shift types in priority order (Graveyard first, then early, etc)
       const shiftTypes = ["Graveyard", "Day Shift Early", "Day Shift", "Swing Shift"];
       
       for (const shiftType of shiftTypes) {
@@ -152,6 +155,9 @@ export class ScheduleGenerator {
         // Get shifts of current type
         const shiftsOfType = shifts.filter(s => getShiftType(s.start_time) === shiftType);
         console.log(`Found ${shiftsOfType.length} ${shiftType} shifts`);
+
+        // Sort shifts by duration (shorter shifts first to ensure better distribution)
+        shiftsOfType.sort((a, b) => getShiftDuration(a) - getShiftDuration(b));
 
         // Get available employees for this shift type
         const availableEmployees = employees.filter(emp => 
@@ -189,8 +195,7 @@ export class ScheduleGenerator {
             currentDate,
             employee.id,
             shift,
-            coverageTracker,
-            shiftType
+            coverageTracker
           );
         }
 
