@@ -19,6 +19,7 @@ export function useAvailabilityMutations(employeeId: string) {
         .maybeSingle();
 
       if (error) throw error;
+      if (!data) throw new Error("Failed to create availability");
       return data;
     },
     onSuccess: () => {
@@ -26,6 +27,7 @@ export function useAvailabilityMutations(employeeId: string) {
       toast.success("Availability added successfully");
     },
     onError: (error: any) => {
+      console.error("Create availability error:", error);
       toast.error("Error adding availability", {
         description: error.message,
       });
@@ -34,6 +36,17 @@ export function useAvailabilityMutations(employeeId: string) {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, startTime, endTime }: { id: string; startTime: string; endTime: string }) => {
+      // First check if the record exists
+      const { data: existingRecord, error: checkError } = await supabase
+        .from('employee_availability')
+        .select()
+        .eq('id', id)
+        .maybeSingle();
+
+      if (checkError) throw checkError;
+      if (!existingRecord) throw new Error("Availability record not found");
+
+      // If record exists, proceed with update
       const { data, error } = await supabase
         .from('employee_availability')
         .update({ 
@@ -46,7 +59,7 @@ export function useAvailabilityMutations(employeeId: string) {
         .maybeSingle();
 
       if (error) throw error;
-      if (!data) throw new Error("Availability not found");
+      if (!data) throw new Error("Failed to update availability");
       return data;
     },
     onSuccess: () => {
@@ -54,6 +67,7 @@ export function useAvailabilityMutations(employeeId: string) {
       toast.success("Availability updated successfully");
     },
     onError: (error: any) => {
+      console.error("Update availability error:", error);
       toast.error("Error updating availability", {
         description: error.message,
       });
@@ -74,6 +88,7 @@ export function useAvailabilityMutations(employeeId: string) {
       toast.success("Availability deleted successfully");
     },
     onError: (error: any) => {
+      console.error("Delete availability error:", error);
       toast.error("Error deleting availability", {
         description: error.message,
       });
