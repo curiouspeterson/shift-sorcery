@@ -46,10 +46,11 @@ export function ScheduleCalendar({
 
   const getShiftType = (startTime: string) => {
     const hour = parseInt(startTime.split(':')[0]);
+    // Align with coverage requirements time ranges
     if (hour >= 4 && hour < 8) return "Day Shift Early";
     if (hour >= 8 && hour < 16) return "Day Shift";
-    if (hour >= 16 && hour < 24) return "Swing Shift";
-    return "Graveyard";
+    if (hour >= 16 && hour < 22) return "Swing Shift";
+    return "Graveyard"; // 22-4
   };
 
   const getRequiredStaffForShiftType = (shiftType: string) => {
@@ -64,9 +65,9 @@ export function ScheduleCalendar({
         case "Day Shift":
           return reqStartHour >= 8 && reqStartHour < 16;
         case "Swing Shift":
-          return reqStartHour >= 16 && reqStartHour < 24;
+          return reqStartHour >= 16 && reqStartHour < 22;
         case "Graveyard":
-          return reqStartHour < 4 || reqStartHour >= 22;
+          return reqStartHour >= 22 || reqStartHour < 4; // Handle overnight shift
         default:
           return false;
       }
