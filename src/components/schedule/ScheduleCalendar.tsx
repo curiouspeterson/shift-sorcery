@@ -2,6 +2,8 @@ import { format, startOfWeek, addDays } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle, XCircle } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 interface ScheduleCalendarProps {
   selectedDate: Date;
@@ -14,6 +16,19 @@ export function ScheduleCalendar({
   scheduleData,
 }: ScheduleCalendarProps) {
   const weekStart = startOfWeek(selectedDate);
+
+  const { data: coverageRequirements } = useQuery({
+    queryKey: ['coverage-requirements'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('coverage_requirements')
+        .select('*')
+        .order('start_time');
+      
+      if (error) throw error;
+      return data;
+    }
+  });
 
   const sortAssignmentsByShiftTime = (assignments: any[]) => {
     return [...assignments].sort((a, b) => {
@@ -37,13 +52,36 @@ export function ScheduleCalendar({
     return "Graveyard";
   };
 
+  const getRequiredStaffForShiftType = (shiftType: string) => {
+    if (!coverageRequirements) return 0;
+
+    // Find the coverage requirement that matches this shift type
+    const requirement = coverageRequirements.find(req => {
+      const reqStartHour = parseInt(req.start_time.split(':')[0]);
+      switch (shiftType) {
+        case "Day Shift Early":
+          return reqStartHour >= 4 && reqStartHour < 8;
+        case "Day Shift":
+          return reqStartHour >= 8 && reqStartHour < 16;
+        case "Swing Shift":
+          return reqStartHour >= 16 && reqStartHour < 24;
+        case "Graveyard":
+          return reqStartHour < 4 || reqStartHour >= 22;
+        default:
+          return false;
+      }
+    });
+
+    return requirement?.min_employees || 0;
+  };
+
   const isMinimumStaffingMet = (assignments: any[], shiftType: string) => {
     // Count staff for this shift type
     const staffCount = assignments.filter(a => getShiftType(a.shift.start_time) === shiftType).length;
     
-    // Get minimum requirement for this time period
-    // Note: This is a simplified check. You might want to make this more precise
-    const minStaff = 2; // Default minimum staffing requirement
+    // Get minimum requirement for this shift type
+    const minStaff = getRequiredStaffForShiftType(shiftType);
+    console.log(`${shiftType}: ${staffCount}/${minStaff} staff`);
     
     return staffCount >= minStaff;
   };
@@ -52,11 +90,15 @@ export function ScheduleCalendar({
     const isMet = isMinimumStaffingMet(assignments, shiftType);
     const Icon = isMet ? CheckCircle : XCircle;
     const color = isMet ? "text-green-500" : "text-red-500";
+    const minStaff = getRequiredStaffForShiftType(shiftType);
+    const currentStaff = assignments.filter(a => getShiftType(a.shift.start_time) === shiftType).length;
     
     return (
       <div className="flex items-center gap-1 text-sm">
         <Icon className={`h-4 w-4 ${color}`} />
-        <span className={color}>{shiftType}</span>
+        <span className={color}>
+          {shiftType} ({currentStaff}/{minStaff})
+        </span>
       </div>
     );
   };
