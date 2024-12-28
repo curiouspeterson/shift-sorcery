@@ -52,51 +52,44 @@ export function ShiftManagement() {
 
   const deleteShiftMutation = useMutation({
     mutationFn: async (shiftId: string) => {
-      try {
-        // First, delete all schedule assignments that reference this shift
-        const { error: scheduleAssignmentsError } = await supabase
-          .from("schedule_assignments")
-          .delete()
-          .eq("shift_id", shiftId);
+      // Delete schedule assignments
+      const { error: scheduleAssignmentsError } = await supabase
+        .from("schedule_assignments")
+        .delete()
+        .eq("shift_id", shiftId);
 
-        if (scheduleAssignmentsError) {
-          console.error("Error deleting schedule assignments:", scheduleAssignmentsError);
-          throw scheduleAssignmentsError;
-        }
-
-        // Then, delete all employee availability records that reference this shift
-        const { error: availabilityError } = await supabase
-          .from("employee_availability")
-          .delete()
-          .eq("shift_id", shiftId);
-
-        if (availabilityError) {
-          console.error("Error deleting employee availability:", availabilityError);
-          throw availabilityError;
-        }
-
-        // Finally delete the shift itself
-        const { error: shiftError } = await supabase
-          .from("shifts")
-          .delete()
-          .eq("id", shiftId);
-
-        if (shiftError) {
-          console.error("Error deleting shift:", shiftError);
-          throw shiftError;
-        }
-      } catch (error: any) {
-        console.error("Delete shift error:", error);
-        throw error;
+      if (scheduleAssignmentsError) {
+        throw new Error(`Failed to delete schedule assignments: ${scheduleAssignmentsError.message}`);
       }
+
+      // Delete employee availability
+      const { error: availabilityError } = await supabase
+        .from("employee_availability")
+        .delete()
+        .eq("shift_id", shiftId);
+
+      if (availabilityError) {
+        throw new Error(`Failed to delete employee availability: ${availabilityError.message}`);
+      }
+
+      // Delete the shift
+      const { error: shiftError } = await supabase
+        .from("shifts")
+        .delete()
+        .eq("id", shiftId);
+
+      if (shiftError) {
+        throw new Error(`Failed to delete shift: ${shiftError.message}`);
+      }
+
+      return true;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["shifts"] });
       toast.success("Shift deleted successfully");
     },
-    onError: (error: any) => {
-      console.error("Delete shift error:", error);
-      toast.error("Failed to delete shift: " + error.message);
+    onError: (error: Error) => {
+      toast.error(error.message);
     },
   });
 
