@@ -21,6 +21,7 @@ export default function EmployeesView() {
   const queryClient = useQueryClient();
   const [isCreating, setIsCreating] = useState(false);
   const [isSeeding, setIsSeeding] = useState(false);
+  const [isSeedingAvailability, setIsSeedingAvailability] = useState(false);
 
   const { data: employees, isLoading } = useQuery({
     queryKey: ['employees'],
@@ -57,7 +58,6 @@ export default function EmployeesView() {
         description: "Successfully created 20 test employees",
       });
       
-      // Refresh the employees list
       await queryClient.invalidateQueries({ queryKey: ['employees'] });
     } catch (error: any) {
       toast({
@@ -67,6 +67,30 @@ export default function EmployeesView() {
       });
     } finally {
       setIsSeeding(false);
+    }
+  };
+
+  const handleSeedAvailability = async () => {
+    try {
+      setIsSeedingAvailability(true);
+      const { error } = await supabase.functions.invoke('seed-employee-availability', {
+        method: 'POST'
+      });
+      
+      if (error) throw error;
+      
+      toast({
+        title: "Success",
+        description: "Successfully added availability for all employees",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error seeding availability",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsSeedingAvailability(false);
     }
   };
 
@@ -85,6 +109,13 @@ export default function EmployeesView() {
             disabled={isSeeding}
           >
             {isSeeding ? "Creating..." : "Add Test Employees"}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={handleSeedAvailability}
+            disabled={isSeedingAvailability}
+          >
+            {isSeedingAvailability ? "Adding..." : "Add Test Availability"}
           </Button>
           <Button onClick={() => setIsCreating(true)}>
             <Plus className="mr-2 h-4 w-4" />
