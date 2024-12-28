@@ -58,7 +58,10 @@ export function ShiftManagement() {
         .delete()
         .eq("shift_id", shiftId);
 
-      if (scheduleAssignmentsError) throw scheduleAssignmentsError;
+      if (scheduleAssignmentsError) {
+        console.error("Error deleting schedule assignments:", scheduleAssignmentsError);
+        throw scheduleAssignmentsError;
+      }
 
       // Then, delete all employee availability records that reference this shift
       const { error: availabilityError } = await supabase
@@ -66,7 +69,10 @@ export function ShiftManagement() {
         .delete()
         .eq("shift_id", shiftId);
 
-      if (availabilityError) throw availabilityError;
+      if (availabilityError) {
+        console.error("Error deleting employee availability:", availabilityError);
+        throw availabilityError;
+      }
 
       // Finally delete the shift itself
       const { error: shiftError } = await supabase
@@ -74,7 +80,10 @@ export function ShiftManagement() {
         .delete()
         .eq("id", shiftId);
 
-      if (shiftError) throw shiftError;
+      if (shiftError) {
+        console.error("Error deleting shift:", shiftError);
+        throw shiftError;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["shifts"] });
