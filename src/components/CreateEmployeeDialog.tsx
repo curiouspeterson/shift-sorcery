@@ -26,7 +26,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -63,7 +62,7 @@ export function CreateEmployeeDialog({ open, onOpenChange }: CreateEmployeeDialo
     try {
       setIsLoading(true);
 
-      const { error } = await fetch(
+      const response = await fetch(
         `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/create-employee`,
         {
           method: 'POST',
@@ -73,9 +72,13 @@ export function CreateEmployeeDialog({ open, onOpenChange }: CreateEmployeeDialo
           },
           body: JSON.stringify(data),
         }
-      ).then(res => res.json());
+      );
 
-      if (error) throw new Error(error);
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to create employee');
+      }
 
       toast({
         title: "Employee created",
@@ -86,9 +89,10 @@ export function CreateEmployeeDialog({ open, onOpenChange }: CreateEmployeeDialo
       form.reset();
       onOpenChange(false);
     } catch (error: any) {
+      console.error('Error creating employee:', error);
       toast({
         title: "Error creating employee",
-        description: error.message,
+        description: error.message || "Failed to create employee. Please try again.",
         variant: "destructive",
       });
     } finally {
