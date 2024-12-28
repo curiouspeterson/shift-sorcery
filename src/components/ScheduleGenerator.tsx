@@ -54,13 +54,11 @@ export function ScheduleGenerator() {
 
       return schedule;
     },
-    staleTime: 0, // Consider data immediately stale
-    cacheTime: 0  // Don't cache the data
+    gcTime: 0
   });
 
   const handlePreviousWeek = () => {
     setSelectedDate(subWeeks(selectedDate, 1));
-    // Invalidate queries for the new week
     queryClient.invalidateQueries({
       queryKey: ["schedule", format(subWeeks(selectedDate, 1), "yyyy-MM-dd")]
     });
@@ -68,18 +66,15 @@ export function ScheduleGenerator() {
 
   const handleNextWeek = () => {
     setSelectedDate(addWeeks(selectedDate, 1));
-    // Invalidate queries for the new week
     queryClient.invalidateQueries({
       queryKey: ["schedule", format(addWeeks(selectedDate, 1), "yyyy-MM-dd")]
     });
   };
 
   const handleScheduleGenerated = async () => {
-    // Invalidate the current week's data
     await queryClient.invalidateQueries({
       queryKey: ["schedule", format(selectedDate, "yyyy-MM-dd")]
     });
-    // Force a refetch
     await refetch();
   };
 
