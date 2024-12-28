@@ -1,76 +1,29 @@
 import { Shift, Employee, Availability, ShiftAssignment } from './types.ts';
 import { getShiftType, getShiftDuration } from './shiftUtils.ts';
 import { ShiftRequirementsManager } from './ShiftRequirementsManager.ts';
-import { SCHEDULING_CONSTANTS } from './constants.ts';
+import { TimeSlotManager } from './TimeSlotManager.ts';
+import { ShiftCounter } from './ShiftCounter.ts';
 
 export class ShiftAssignmentManager {
   private assignments: ShiftAssignment[] = [];
   private employeesAssignedToday: Set<string> = new Set();
-  private shiftCounts: Record<string, number> = {
-    'Day Shift Early': 0,
-    'Day Shift': 0,
-    'Swing Shift': 0,
-    'Graveyard': 0
-  };
-  private employeesPerTimeSlot: Map<string, number> = new Map();
+  private timeSlotManager: TimeSlotManager;
+  private shiftCounter: ShiftCounter;
   private longShiftCount: number = 0;
   private readonly MAX_LONG_SHIFTS = 3;
 
-  constructor(private requirementsManager: ShiftRequirementsManager) {}
+  constructor(private requirementsManager: ShiftRequirementsManager) {
+    this.timeSlotManager = new TimeSlotManager();
+    this.shiftCounter = new ShiftCounter();
+  }
 
   public resetDailyCounts(): void {
     console.log('\n=== Resetting daily counts ===');
     this.employeesAssignedToday.clear();
-    this.shiftCounts = {
-      'Day Shift Early': 0,
-      'Day Shift': 0,
-      'Swing Shift': 0,
-      'Graveyard': 0
-    };
-    this.employeesPerTimeSlot.clear();
+    this.shiftCounter.reset();
+    this.timeSlotManager.resetCounts();
     this.longShiftCount = 0;
     console.log('Daily counts reset complete');
-  }
-
-  private updateTimeSlotCounts(shift: Shift, increment: boolean = true): boolean {
-    const timeSlots = this.getTimeSlots(shift);
-    const delta = increment ? 1 : -1;
-    const shiftType = getShiftType(shift.start_time);
-    const required = this.requirementsManager.getRequiredStaffForShiftType(shiftType);
-
-    console.log(`\nChecking time slot capacity for ${shiftType}:`);
-    console.log(`Current count: ${this.shiftCounts[shiftType]}, Required: ${required}`);
-
-    // Strict enforcement: Never exceed minimum requirements
-    if (increment && this.shiftCounts[shiftType] >= required) {
-      console.log(`❌ Cannot assign: ${shiftType} already at minimum requirement (${this.shiftCounts[shiftType]}/${required})`);
-      return false;
-    }
-
-    // Check each time slot to ensure we don't exceed the minimum requirement
-    if (increment) {
-      for (const slot of timeSlots) {
-        const currentCount = this.employeesPerTimeSlot.get(slot) || 0;
-        // Use required staff count as the maximum allowed
-        const maxAllowed = required;
-        
-        if (currentCount + delta > maxAllowed) {
-          console.log(`❌ Cannot assign: would exceed minimum requirement (${maxAllowed}) at ${slot}`);
-          return false;
-        }
-      }
-    }
-
-    // Update counts for all time slots
-    for (const slot of timeSlots) {
-      const currentCount = this.employeesPerTimeSlot.get(slot) || 0;
-      this.employeesPerTimeSlot.set(slot, currentCount + delta);
-    }
-
-    if (increment) {
-      console.log(`✅ Assignment allowed for ${shiftType}`);
-    }
-    return true;
   }
 
   private getTimeSlots(shift: Shift): string[] {
@@ -78,7 +31,6 @@ export class ShiftAssignmentManager {
     let startHour = parseInt(shift.start_time.split(':')[0]);
     let endHour = parseInt(shift.end_time.split(':')[0]);
 
-    // Handle overnight shifts
     if (endHour <= startHour) {
       endHour += 24;
     }
@@ -90,6 +42,34 @@ export class ShiftAssignmentManager {
     return slots;
   }
 
+  private updateTimeSlotCounts(shift: Shift, increment: boolean = true): boolean {
+    const timeSlots = this.getTimeSlots(shift);
+    const shiftType = getShiftType(shift.start_time);
+    const required = this.requirementsManager.getRequiredStaffForShiftType(shiftType);
+
+    console.log(`\nChecking time slot capacity for ${shiftType}:`);
+    console.log(`Current count: ${this.shiftCounter.getCurrentCount(shiftType)}, Required: ${required}`);
+
+    // Strict enforcement: Never exceed minimum requirements
+    if (increment && this.shiftCounter.getCurrentCount(shiftType) >= required) {
+      console.log(`❌ Cannot assign: ${shiftType} already at minimum requirement (${this.shiftCounter.getCurrentCount(shiftType)}/${required})`);
+      return false;
+    }
+
+    // Check capacity constraints
+    if (increment && !this.timeSlotManager.canAddToTimeSlots(timeSlots, required)) {
+      return false;
+    }
+
+    // Update time slot counts
+    this.timeSlotManager.updateTimeSlots(timeSlots, increment);
+
+    if (increment) {
+      console.log(`✅ Assignment allowed for ${shiftType}`);
+    }
+    return true;
+  }
+
   public canAssignShift(
     employee: Employee,
     shift: Shift,
@@ -99,36 +79,30 @@ export class ShiftAssignmentManager {
     const shiftType = getShiftType(shift.start_time);
     console.log(`\nChecking if ${employee.first_name} can be assigned to ${shiftType}:`);
 
-    // Check if employee is already assigned today
     if (this.employeesAssignedToday.has(employee.id)) {
       console.log(`❌ ${employee.first_name} already assigned today`);
       return false;
     }
 
-    // Strict enforcement: Never exceed minimum requirements
     const required = this.requirementsManager.getRequiredStaffForShiftType(shiftType);
-    if (this.shiftCounts[shiftType] >= required) {
+    if (this.shiftCounter.getCurrentCount(shiftType) >= required) {
       console.log(`❌ Already at minimum requirement (${required}) for ${shiftType}`);
       return false;
     }
 
-    // Check capacity constraints
     if (!this.updateTimeSlotCounts(shift, true)) {
       console.log(`❌ Capacity constraints not met for ${shiftType}`);
-      this.updateTimeSlotCounts(shift, false); // Rollback the count
+      this.updateTimeSlotCounts(shift, false);
       return false;
     }
 
     const shiftDuration = getShiftDuration(shift);
-    
-    // Check if we can assign a long shift
     if (shiftDuration > 8 && this.longShiftCount >= this.MAX_LONG_SHIFTS) {
       console.log(`❌ Maximum long shifts (${this.MAX_LONG_SHIFTS}) reached`);
-      this.updateTimeSlotCounts(shift, false); // Rollback the count
+      this.updateTimeSlotCounts(shift, false);
       return false;
     }
 
-    // Check employee availability
     const hasAvailability = availability.some(a => 
       a.employee_id === employee.id && 
       a.day_of_week === dayOfWeek &&
@@ -137,7 +111,7 @@ export class ShiftAssignmentManager {
 
     if (!hasAvailability) {
       console.log(`❌ ${employee.first_name} not available for this shift`);
-      this.updateTimeSlotCounts(shift, false); // Rollback the count
+      this.updateTimeSlotCounts(shift, false);
       return false;
     }
 
@@ -163,7 +137,7 @@ export class ShiftAssignmentManager {
     });
 
     this.employeesAssignedToday.add(employee.id);
-    this.shiftCounts[shiftType]++;
+    this.shiftCounter.increment(shiftType);
     
     if (shiftDuration > 8) {
       this.longShiftCount++;
@@ -173,7 +147,7 @@ export class ShiftAssignmentManager {
     console.log(`- Shift type: ${shiftType}`);
     console.log(`- Time: ${shift.start_time} - ${shift.end_time}`);
     console.log(`- Duration: ${shiftDuration} hours`);
-    console.log(`- Current ${shiftType} count: ${this.shiftCounts[shiftType]}/${required}`);
+    console.log(`- Current ${shiftType} count: ${this.shiftCounter.getCurrentCount(shiftType)}/${required}`);
     console.log(`- Long shifts assigned: ${this.longShiftCount}/${this.MAX_LONG_SHIFTS}`);
   }
 
@@ -182,12 +156,10 @@ export class ShiftAssignmentManager {
   }
 
   public getCurrentCounts(): Record<string, number> {
-    return { ...this.shiftCounts };
+    return this.shiftCounter.getCounts();
   }
 
   public getCapacityInfo(): string {
-    return Array.from(this.employeesPerTimeSlot.entries())
-      .map(([slot, count]) => `${slot}: ${count}`)
-      .join('\n');
+    return this.timeSlotManager.getCapacityInfo();
   }
 }
