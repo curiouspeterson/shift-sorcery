@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { format, startOfWeek, addDays } from "date-fns";
+import { format, startOfWeek, addDays, parseISO, isWithinInterval } from "date-fns";
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +11,7 @@ export function ScheduleGenerator() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const queryClient = useQueryClient();
 
+  // Fetch employees
   const { data: employees } = useQuery({
     queryKey: ["employees"],
     queryFn: async () => {
@@ -23,6 +24,7 @@ export function ScheduleGenerator() {
     },
   });
 
+  // Fetch shifts
   const { data: shifts } = useQuery({
     queryKey: ["shifts"],
     queryFn: async () => {
@@ -35,9 +37,24 @@ export function ScheduleGenerator() {
     },
   });
 
+  // Fetch coverage requirements
+  const { data: coverageRequirements } = useQuery({
+    queryKey: ["coverage_requirements"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("coverage_requirements")
+        .select("*")
+        .order("start_time");
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const generateScheduleMutation = useMutation({
     mutationFn: async () => {
       const weekStart = startOfWeek(selectedDate);
+      
+      // Create new schedule
       const { data: schedule, error: scheduleError } = await supabase
         .from("schedules")
         .insert([
@@ -52,28 +69,107 @@ export function ScheduleGenerator() {
 
       if (scheduleError) throw scheduleError;
 
-      // Simple algorithm: assign each employee to a shift for each day
+      if (!employees || !shifts || !coverageRequirements) {
+        throw new Error("Missing required data");
+      }
+
+      // Group shifts by duration
+      const tenHourShifts = shifts.filter(s => {
+        const start = parseISO(`2000-01-01T${s.start_time}`);
+        const end = parseISO(`2000-01-01T${s.end_time}`);
+        const duration = end.getTime() - start.getTime();
+        return Math.abs(duration) === 10 * 60 * 60 * 1000;
+      });
+
+      const twelveHourShifts = shifts.filter(s => {
+        const start = parseISO(`2000-01-01T${s.start_time}`);
+        const end = parseISO(`2000-01-01T${s.end_time}`);
+        const duration = end.getTime() - start.getTime();
+        return Math.abs(duration) === 12 * 60 * 60 * 1000;
+      });
+
+      const fourHourShifts = shifts.filter(s => {
+        const start = parseISO(`2000-01-01T${s.start_time}`);
+        const end = parseISO(`2000-01-01T${s.end_time}`);
+        const duration = end.getTime() - start.getTime();
+        return Math.abs(duration) === 4 * 60 * 60 * 1000;
+      });
+
+      // Initialize assignments array
       const assignments = [];
-      let employeeIndex = 0;
-      let shiftIndex = 0;
+      
+      // Track employee hours
+      const employeeHours = {};
+      employees.forEach(emp => {
+        employeeHours[emp.id] = 0;
+      });
 
-      for (let day = 0; day < 7; day++) {
-        const currentDate = format(addDays(weekStart, day), "yyyy-MM-dd");
+      // Assign employees to shifts for each day
+      for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
+        const currentDate = format(addDays(weekStart, dayIndex), "yyyy-MM-dd");
+        
+        // First, assign 12-hour shifts
+        for (const shift of twelveHourShifts) {
+          for (const employee of employees) {
+            if (employeeHours[employee.id] <= 28 && // Ensure we don't exceed 40 hours
+                !assignments.some(a => 
+                  a.employee_id === employee.id && 
+                  a.date === currentDate
+                )) {
+              assignments.push({
+                schedule_id: schedule.id,
+                employee_id: employee.id,
+                shift_id: shift.id,
+                date: currentDate,
+              });
+              employeeHours[employee.id] += 12;
+              break;
+            }
+          }
+        }
 
-        if (employees && shifts) {
-          // Rotate through employees and shifts
-          assignments.push({
-            schedule_id: schedule.id,
-            employee_id: employees[employeeIndex].id,
-            shift_id: shifts[shiftIndex].id,
-            date: currentDate,
-          });
+        // Then, assign 10-hour shifts
+        for (const shift of tenHourShifts) {
+          for (const employee of employees) {
+            if (employeeHours[employee.id] <= 30 && // Ensure we don't exceed 40 hours
+                !assignments.some(a => 
+                  a.employee_id === employee.id && 
+                  a.date === currentDate
+                )) {
+              assignments.push({
+                schedule_id: schedule.id,
+                employee_id: employee.id,
+                shift_id: shift.id,
+                date: currentDate,
+              });
+              employeeHours[employee.id] += 10;
+              break;
+            }
+          }
+        }
 
-          employeeIndex = (employeeIndex + 1) % employees.length;
-          shiftIndex = (shiftIndex + 1) % shifts.length;
+        // Finally, assign 4-hour shifts where needed
+        for (const shift of fourHourShifts) {
+          for (const employee of employees) {
+            if (employeeHours[employee.id] <= 36 && // Ensure we don't exceed 40 hours
+                !assignments.some(a => 
+                  a.employee_id === employee.id && 
+                  a.date === currentDate
+                )) {
+              assignments.push({
+                schedule_id: schedule.id,
+                employee_id: employee.id,
+                shift_id: shift.id,
+                date: currentDate,
+              });
+              employeeHours[employee.id] += 4;
+              break;
+            }
+          }
         }
       }
 
+      // Insert all assignments
       const { error: assignmentError } = await supabase
         .from("schedule_assignments")
         .insert(assignments);
@@ -136,7 +232,7 @@ export function ScheduleGenerator() {
             />
             <Button
               onClick={() => generateScheduleMutation.mutate()}
-              disabled={!employees?.length || !shifts?.length}
+              disabled={!employees?.length || !shifts?.length || !coverageRequirements?.length}
             >
               Generate Schedule for Selected Week
             </Button>
