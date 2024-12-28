@@ -36,7 +36,6 @@ export function useAvailabilityMutations(employeeId: string) {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, startTime, endTime }: { id: string; startTime: string; endTime: string }) => {
-      // Update the record directly
       const { data, error } = await supabase
         .from('employee_availability')
         .update({ 
@@ -54,7 +53,7 @@ export function useAvailabilityMutations(employeeId: string) {
       }
 
       if (!data) {
-        throw new Error("Availability record not found");
+        throw new Error("No availability record found to update");
       }
 
       return data;
