@@ -9,18 +9,28 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
 
+  const clearAuthData = async () => {
+    // Clear all Supabase-related items from localStorage
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith('sb-')) {
+        localStorage.removeItem(key);
+      }
+    });
+    await supabase.auth.signOut();
+  };
+
   useEffect(() => {
     const checkAuth = async () => {
       try {
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
         
         if (sessionError) {
+          await clearAuthData();
           throw sessionError;
         }
 
         if (!session) {
-          // Clear any stale data
-          localStorage.removeItem('supabase.auth.token');
+          await clearAuthData();
           navigate("/");
           return;
         }
@@ -28,9 +38,7 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
         // Verify the session is still valid
         const { error: userError } = await supabase.auth.getUser();
         if (userError) {
-          // If we get a 403 or user not found, clear everything and redirect
-          await supabase.auth.signOut();
-          localStorage.removeItem('supabase.auth.token');
+          await clearAuthData();
           throw userError;
         }
       } catch (error: any) {
@@ -38,9 +46,7 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
         toast.error("Authentication error", {
           description: "Please sign in again",
         });
-        // Ensure we're completely signed out
-        await supabase.auth.signOut();
-        localStorage.removeItem('supabase.auth.token');
+        await clearAuthData();
         navigate("/");
       } finally {
         setIsLoading(false);
@@ -51,7 +57,7 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_OUT' || !session) {
-        localStorage.removeItem('supabase.auth.token');
+        await clearAuthData();
         navigate("/");
       }
     });

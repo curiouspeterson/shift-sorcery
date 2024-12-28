@@ -32,11 +32,24 @@ export function DashboardSidebar() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  const clearAuthData = async () => {
+    // Clear all Supabase-related items from localStorage
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith('sb-')) {
+        localStorage.removeItem(key);
+      }
+    });
+    await supabase.auth.signOut();
+  };
+
   useEffect(() => {
     const fetchProfile = async () => {
       try {
         const { data: { user }, error: userError } = await supabase.auth.getUser();
-        if (userError) throw userError;
+        if (userError) {
+          await clearAuthData();
+          throw userError;
+        }
         
         if (user) {
           const { data, error } = await supabase
@@ -79,11 +92,7 @@ export function DashboardSidebar() {
 
   const handleLogout = async () => {
     try {
-      // Clear any stale data first
-      localStorage.removeItem('supabase.auth.token');
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-      
+      await clearAuthData();
       toast.success("Logged out successfully");
       navigate("/");
     } catch (error: any) {
@@ -92,6 +101,7 @@ export function DashboardSidebar() {
         description: error.message
       });
       // Force navigation to login even if there was an error
+      await clearAuthData();
       navigate("/");
     }
   };
@@ -188,4 +198,4 @@ export function DashboardSidebar() {
       </SidebarFooter>
     </Sidebar>
   );
-}
+};
