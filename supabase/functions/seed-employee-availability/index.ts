@@ -72,11 +72,11 @@ Deno.serve(async (req) => {
 
     console.log(`Found ${allShifts.length} shifts`)
 
-    // Delete existing availability entries
+    // Delete existing availability entries - Fixed the deletion query
     const { error: deleteError } = await supabase
       .from('employee_availability')
       .delete()
-      .gt('id', '0')
+      .neq('id', '00000000-0000-0000-0000-000000000000') // Using a valid UUID comparison
 
     if (deleteError) {
       console.error('Error deleting existing availability:', deleteError)
@@ -105,6 +105,8 @@ Deno.serve(async (req) => {
           employee_id: employee.id,
           day_of_week: day,
           shift_id: randomShift.id,
+          start_time: randomShift.start_time,
+          end_time: randomShift.end_time,
         })
       }
     }
