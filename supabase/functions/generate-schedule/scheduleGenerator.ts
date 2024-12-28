@@ -3,6 +3,7 @@ import { format, addDays, parseISO } from 'https://esm.sh/date-fns@3.3.1';
 import { ShiftRequirementsManager } from './ShiftRequirementsManager.ts';
 import { ShiftAssignmentManager } from './ShiftAssignmentManager.ts';
 import { getShiftType } from './shiftUtils.ts';
+import { SCHEDULING_CONSTANTS } from './constants.ts';
 
 export class ScheduleGenerator {
   private supabase: any;
@@ -15,6 +16,7 @@ export class ScheduleGenerator {
   }
 
   private async fetchData() {
+    console.log('Fetching scheduling data...');
     const [
       { data: employees },
       { data: shifts },
@@ -30,6 +32,12 @@ export class ScheduleGenerator {
     if (!employees || !shifts || !coverageReqs || !availability) {
       throw new Error('Failed to fetch required data');
     }
+
+    console.log(`Fetched data:
+      - ${employees.length} employees
+      - ${shifts.length} shift templates
+      - ${coverageReqs.length} coverage requirements
+      - ${availability.length} availability records`);
 
     return { employees, shifts, coverageReqs, availability };
   }
@@ -62,6 +70,8 @@ export class ScheduleGenerator {
     const shiftTypes = ["Graveyard", "Swing Shift", "Day Shift", "Day Shift Early"];
 
     console.log(`\nChecking requirements for ${currentDate}:`);
+    console.log('\nCurrent capacity by time slot:');
+    console.log(assignmentManager.getCapacityInfo());
     
     shiftTypes.forEach(shiftType => {
       const required = requirementsManager.getRequiredStaffForShiftType(shiftType);
@@ -83,12 +93,6 @@ export class ScheduleGenerator {
     const { employees, shifts, coverageReqs, availability } = await this.fetchData();
     const schedule = await this.createSchedule(weekStartDate, userId);
 
-    console.log('\nInitial data loaded:');
-    console.log(`- ${employees.length} employees`);
-    console.log(`- ${shifts.length} shift templates`);
-    console.log(`- ${coverageReqs.length} coverage requirements`);
-    console.log(`- ${availability.length} availability records`);
-
     const requirementsManager = new ShiftRequirementsManager(coverageReqs);
     const assignmentManager = new ShiftAssignmentManager(requirementsManager);
 
@@ -100,10 +104,9 @@ export class ScheduleGenerator {
       console.log(`\n=== Processing ${format(new Date(currentDate), 'EEEE, MMM d')} ===`);
       
       let attempts = 0;
-      const MAX_ATTEMPTS = 3; // Prevent infinite loops
       let dayRequirementsMet = false;
 
-      while (!dayRequirementsMet && attempts < MAX_ATTEMPTS) {
+      while (!dayRequirementsMet && attempts < SCHEDULING_CONSTANTS.MAX_SCHEDULING_ATTEMPTS) {
         attempts++;
         console.log(`\nAttempt ${attempts} for ${currentDate}`);
         assignmentManager.resetDailyCounts();
@@ -114,22 +117,18 @@ export class ScheduleGenerator {
         for (const shiftType of shiftTypes) {
           console.log(`\nProcessing ${shiftType} assignments`);
           
-          // Get shifts of current type
           const shiftsOfType = shifts.filter(s => getShiftType(s.start_time) === shiftType);
           console.log(`Found ${shiftsOfType.length} ${shiftType} shifts`);
 
-          // Sort shifts by duration (longer shifts first for better coverage)
           const sortedShifts = [...shiftsOfType].sort((a, b) => {
             const durationA = this.getShiftDuration(a);
             const durationB = this.getShiftDuration(b);
             return durationB - durationA;
           });
 
-          // Get required staff count for this shift type
           const requiredStaff = requirementsManager.getRequiredStaffForShiftType(shiftType);
           console.log(`Required staff for ${shiftType}: ${requiredStaff}`);
 
-          // Filter available employees for this shift type
           const availableEmployees = employees.filter(employee => {
             const hasAvailability = availability.some(a => 
               a.employee_id === employee.id && 
@@ -141,10 +140,8 @@ export class ScheduleGenerator {
 
           console.log(`Found ${availableEmployees.length} available employees for ${shiftType}`);
 
-          // Shuffle available employees for fair distribution
           const shuffledEmployees = [...availableEmployees].sort(() => Math.random() - 0.5);
           
-          // Try to assign each available employee
           let assignedCount = 0;
           for (const employee of shuffledEmployees) {
             if (assignedCount >= requiredStaff) {
@@ -156,8 +153,7 @@ export class ScheduleGenerator {
               if (assignmentManager.canAssignShift(employee, shift, availability, dayOfWeek)) {
                 assignmentManager.assignShift(schedule.id, employee, shift, currentDate);
                 assignedCount++;
-                console.log(`Assigned ${employee.first_name} ${employee.last_name} to ${shiftType} (${shift.start_time} - ${shift.end_time})`);
-                break; // Move to next employee once assigned
+                break;
               }
             }
           }
@@ -165,20 +161,18 @@ export class ScheduleGenerator {
           console.log(`${shiftType} final staffing: ${assignedCount}/${requiredStaff}`);
         }
 
-        // Check if all requirements for the day are met
         dayRequirementsMet = this.checkDayRequirements(
           requirementsManager,
           assignmentManager,
           currentDate
         );
 
-        if (!dayRequirementsMet && attempts === MAX_ATTEMPTS) {
-          console.log(`⚠️ Warning: Could not meet all requirements for ${currentDate} after ${MAX_ATTEMPTS} attempts`);
+        if (!dayRequirementsMet && attempts === SCHEDULING_CONSTANTS.MAX_SCHEDULING_ATTEMPTS) {
+          console.log(`⚠️ Warning: Could not meet all requirements for ${currentDate} after ${SCHEDULING_CONSTANTS.MAX_SCHEDULING_ATTEMPTS} attempts`);
         }
       }
     }
 
-    // Insert all assignments
     const assignments = assignmentManager.getAssignments();
     console.log(`\nTotal assignments generated: ${assignments.length}`);
     
