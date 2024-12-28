@@ -67,8 +67,8 @@ export class ScheduleGenerator {
       console.log(`\nProcessing ${format(new Date(currentDate), 'EEEE, MMM d')}`);
       assignmentManager.resetDailyCounts();
 
-      // Process shifts in priority order
-      const shiftTypes = ["Graveyard", "Day Shift Early", "Swing Shift", "Day Shift"];
+      // Process shifts in reverse chronological order
+      const shiftTypes = ["Graveyard", "Swing Shift", "Day Shift", "Day Shift Early"];
       
       for (const shiftType of shiftTypes) {
         console.log(`\nProcessing ${shiftType} assignments`);
@@ -77,22 +77,46 @@ export class ScheduleGenerator {
         const shiftsOfType = shifts.filter(s => getShiftType(s.start_time) === shiftType);
         console.log(`Found ${shiftsOfType.length} ${shiftType} shifts`);
 
-        // Shuffle employees for fair distribution
-        const shuffledEmployees = [...employees].sort(() => Math.random() - 0.5);
+        // Sort shifts by duration (longer shifts first for better coverage)
+        const sortedShifts = [...shiftsOfType].sort((a, b) => {
+          const durationA = this.getShiftDuration(a);
+          const durationB = this.getShiftDuration(b);
+          return durationB - durationA;
+        });
 
+        // Get required staff count for this shift type
+        const requiredStaff = requirementsManager.getRequiredStaffForShiftType(shiftType);
+        console.log(`Required staff for ${shiftType}: ${requiredStaff}`);
+
+        // Filter available employees for this shift type
+        const availableEmployees = employees.filter(employee => {
+          const hasAvailability = availability.some(a => 
+            a.employee_id === employee.id && 
+            a.day_of_week === dayOfWeek &&
+            sortedShifts.some(shift => shift.id === a.shift_id)
+          );
+          return hasAvailability;
+        });
+
+        // Shuffle available employees for fair distribution
+        const shuffledEmployees = [...availableEmployees].sort(() => Math.random() - 0.5);
+        
         // Try to assign each available employee
+        let assignedCount = 0;
         for (const employee of shuffledEmployees) {
-          for (const shift of shiftsOfType) {
+          if (assignedCount >= requiredStaff) break;
+
+          for (const shift of sortedShifts) {
             if (assignmentManager.canAssignShift(employee, shift, availability, dayOfWeek)) {
               assignmentManager.assignShift(schedule.id, employee, shift, currentDate);
+              assignedCount++;
               break; // Move to next employee once assigned
             }
           }
         }
 
-        // Log current staffing levels
-        const counts = assignmentManager.getCurrentCounts();
-        console.log(`${shiftType} staffing: ${counts[shiftType]}/${requirementsManager.getRequiredStaffForShiftType(shiftType)}`);
+        // Log staffing levels
+        console.log(`${shiftType} staffing: ${assignedCount}/${requiredStaff}`);
       }
     }
 
@@ -112,5 +136,16 @@ export class ScheduleGenerator {
       message: 'Schedule generated successfully',
       assignmentsCount: assignments.length
     };
+  }
+
+  private getShiftDuration(shift: any): number {
+    const start = new Date(`2000-01-01T${shift.start_time}`);
+    let end = new Date(`2000-01-01T${shift.end_time}`);
+    
+    if (end < start) {
+      end = new Date(`2000-01-02T${shift.end_time}`);
+    }
+    
+    return (end.getTime() - start.getTime()) / (1000 * 60 * 60);
   }
 }

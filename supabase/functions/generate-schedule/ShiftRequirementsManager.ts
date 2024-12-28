@@ -3,10 +3,10 @@ import { getShiftType } from './shiftUtils.ts';
 
 export class ShiftRequirementsManager {
   private requirements: ShiftRequirements = {
-    earlyShift: 6,
-    dayShift: 8,
-    swingShift: 7,
-    graveyardShift: 6
+    graveyardShift: 6,  // Updated based on requirements
+    swingShift: 7,      // Updated based on requirements
+    dayShift: 8,        // Updated based on requirements
+    earlyShift: 6       // Updated based on requirements
   };
 
   constructor(coverageRequirements: CoverageRequirement[]) {
@@ -14,20 +14,22 @@ export class ShiftRequirementsManager {
     coverageRequirements.forEach(req => {
       const shiftType = getShiftType(req.start_time);
       switch (shiftType) {
-        case 'Day Shift Early':
-          this.requirements.earlyShift = req.min_employees;
-          break;
-        case 'Day Shift':
-          this.requirements.dayShift = req.min_employees;
+        case 'Graveyard':
+          this.requirements.graveyardShift = req.min_employees;
           break;
         case 'Swing Shift':
           this.requirements.swingShift = req.min_employees;
           break;
-        case 'Graveyard':
-          this.requirements.graveyardShift = req.min_employees;
+        case 'Day Shift':
+          this.requirements.dayShift = req.min_employees;
+          break;
+        case 'Day Shift Early':
+          this.requirements.earlyShift = req.min_employees;
           break;
       }
     });
+
+    console.log('Shift requirements:', this.requirements);
   }
 
   public getRequirements(): ShiftRequirements {
@@ -36,14 +38,14 @@ export class ShiftRequirementsManager {
 
   public getRequiredStaffForShiftType(shiftType: string): number {
     switch (shiftType) {
-      case 'Day Shift Early':
-        return this.requirements.earlyShift;
-      case 'Day Shift':
-        return this.requirements.dayShift;
-      case 'Swing Shift':
-        return this.requirements.swingShift;
       case 'Graveyard':
         return this.requirements.graveyardShift;
+      case 'Swing Shift':
+        return this.requirements.swingShift;
+      case 'Day Shift':
+        return this.requirements.dayShift;
+      case 'Day Shift Early':
+        return this.requirements.earlyShift;
       default:
         return 0;
     }
