@@ -11,3 +11,15 @@ export interface ShiftAssignment {
   shift_id: string;
   date: string;
 }
+
+export interface SchedulingResult {
+  message: string;
+  assignmentsCount: number;
+}
+
+export interface SchedulingData {
+  employees: any[];
+  shifts: any[];
+  coverageReqs: any[];
+  availability: any[];
+}

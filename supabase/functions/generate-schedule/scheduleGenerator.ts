@@ -1,63 +1,16 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.7';
 import { format, addDays, parseISO } from 'https://esm.sh/date-fns@3.3.1';
 import { ShiftRequirementsManager } from './ShiftRequirementsManager.ts';
 import { ShiftAssignmentManager } from './ShiftAssignmentManager.ts';
 import { getShiftType } from './shiftUtils.ts';
 import { SCHEDULING_CONSTANTS } from './constants.ts';
+import { DataFetcher } from './DataFetcher.ts';
+import type { SchedulingResult } from './types.ts';
 
 export class ScheduleGenerator {
-  private supabase: any;
+  private dataFetcher: DataFetcher;
 
   constructor() {
-    this.supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
-  }
-
-  private async fetchData() {
-    console.log('Fetching scheduling data...');
-    const [
-      { data: employees },
-      { data: shifts },
-      { data: coverageReqs },
-      { data: availability }
-    ] = await Promise.all([
-      this.supabase.from('profiles').select('*').eq('role', 'employee'),
-      this.supabase.from('shifts').select('*').order('start_time'),
-      this.supabase.from('coverage_requirements').select('*').order('start_time'),
-      this.supabase.from('employee_availability').select('*')
-    ]);
-
-    if (!employees || !shifts || !coverageReqs || !availability) {
-      throw new Error('Failed to fetch required data');
-    }
-
-    console.log(`Fetched data:
-      - ${employees.length} employees
-      - ${shifts.length} shift templates
-      - ${coverageReqs.length} coverage requirements
-      - ${availability.length} availability records`);
-
-    return { employees, shifts, coverageReqs, availability };
-  }
-
-  private async createSchedule(weekStartDate: string, userId: string) {
-    const { data: schedule } = await this.supabase
-      .from('schedules')
-      .insert([{
-        week_start_date: weekStartDate,
-        status: 'draft',
-        created_by: userId,
-      }])
-      .select()
-      .single();
-
-    if (!schedule) {
-      throw new Error('Failed to create schedule');
-    }
-
-    return schedule;
+    this.dataFetcher = new DataFetcher();
   }
 
   private checkDayRequirements(
@@ -89,9 +42,9 @@ export class ScheduleGenerator {
     return allRequirementsMet;
   }
 
-  public async generateSchedule(weekStartDate: string, userId: string) {
-    const { employees, shifts, coverageReqs, availability } = await this.fetchData();
-    const schedule = await this.createSchedule(weekStartDate, userId);
+  public async generateSchedule(weekStartDate: string, userId: string): Promise<SchedulingResult> {
+    const { employees, shifts, coverageReqs, availability } = await this.dataFetcher.fetchSchedulingData();
+    const schedule = await this.dataFetcher.createSchedule(weekStartDate, userId);
 
     const requirementsManager = new ShiftRequirementsManager(coverageReqs);
     const assignmentManager = new ShiftAssignmentManager(requirementsManager);
@@ -144,8 +97,9 @@ export class ScheduleGenerator {
           
           let assignedCount = 0;
           for (const employee of shuffledEmployees) {
+            // Stop assigning once we've met the requirement
             if (assignedCount >= requiredStaff) {
-              console.log(`Met required staff (${requiredStaff}) for ${shiftType}`);
+              console.log(`Met required staff (${requiredStaff}) for ${shiftType}, stopping assignments`);
               break;
             }
 
@@ -176,15 +130,7 @@ export class ScheduleGenerator {
     const assignments = assignmentManager.getAssignments();
     console.log(`\nTotal assignments generated: ${assignments.length}`);
     
-    if (assignments.length > 0) {
-      const { error: assignmentError } = await this.supabase
-        .from('schedule_assignments')
-        .insert(assignments);
-
-      if (assignmentError) {
-        throw assignmentError;
-      }
-    }
+    await this.dataFetcher.saveAssignments(assignments);
 
     return {
       message: 'Schedule generated successfully',

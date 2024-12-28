@@ -76,6 +76,7 @@ export function ScheduleCalendar({
                         shiftType={shiftType}
                         currentStaff={currentStaff}
                         minStaff={minStaff}
+                        date={format(day, "yyyy-MM-dd")}
                       />
                     );
                   })}
