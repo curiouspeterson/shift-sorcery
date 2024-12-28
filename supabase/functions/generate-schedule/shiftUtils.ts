@@ -1,16 +1,22 @@
 import { Shift, ShiftType, CoverageRequirement } from './types.ts';
 
-export function getShiftType(startTime: string): ShiftType {
+export function getShiftType(startTime: string): string {
   const hour = parseInt(startTime.split(':')[0]);
-  if (hour >= 5 && hour < 14) return 'day';
-  if (hour >= 14 && hour < 22) return 'swing';
-  return 'graveyard';
+  
+  if (hour >= 4 && hour < 8) return "Day Shift Early";
+  if (hour >= 8 && hour < 16) return "Day Shift";
+  if (hour >= 16 && hour < 22) return "Swing Shift";
+  return "Graveyard"; // 22-4
 }
 
 export function getShiftDuration(shift: Shift): number {
   const start = new Date(`2000-01-01T${shift.start_time}`);
-  const end = new Date(`2000-01-01T${shift.end_time}`);
-  if (end < start) end.setDate(end.getDate() + 1);
+  let end = new Date(`2000-01-01T${shift.end_time}`);
+  
+  if (end < start) {
+    end = new Date(`2000-01-02T${shift.end_time}`);
+  }
+  
   return (end.getTime() - start.getTime()) / (1000 * 60 * 60);
 }
 

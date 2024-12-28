@@ -34,6 +34,17 @@ export class CoverageTracker {
     return coverageUpdated && !allMinimumsMet;
   }
 
+  public getCoverageStatus(): Record<string, { current: number; required: number }> {
+    const status: Record<string, { current: number; required: number }> = {};
+    this.tracking.forEach((tracking, key) => {
+      status[key] = {
+        current: tracking.currentCount,
+        required: tracking.requirement.min_employees
+      };
+    });
+    return status;
+  }
+
   public logCoverageStatus(date: string): void {
     console.log('Coverage status for', date);
     this.tracking.forEach((value, key) => {

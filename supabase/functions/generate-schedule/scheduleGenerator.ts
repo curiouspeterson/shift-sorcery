@@ -59,23 +59,16 @@ export class ScheduleGenerator {
     currentDate: string,
     emp: { employeeId: string; shiftId: string },
     shift: Shift,
-    coverageTracker: CoverageTracker
+    coverageTracker: CoverageTracker,
+    shiftType: string
   ): boolean {
+    // Don't assign if employee already has a shift this day
     if (this.assignments.some(a => a.employee_id === emp.employeeId && a.date === currentDate)) {
       return false;
     }
 
-    const shiftDuration = getShiftDuration(shift);
-    const isShortShift = shiftDuration <= 4;
-    const employeePattern = this.employeePatterns.get(emp.employeeId);
-
-    // For 12-hour shifts or when no pattern exists, establish the pattern
-    if (shiftDuration >= 12) {
-      this.employeePatterns.set(emp.employeeId, getShiftType(shift.start_time));
-    }
-
-    // Check if the shift is compatible with the employee's established pattern
-    if (!isShiftCompatible(employeePattern, shift, isShortShift)) {
+    // Only assign if the shift matches the requested type
+    if (getShiftType(shift.start_time) !== shiftType) {
       return false;
     }
 
@@ -87,7 +80,7 @@ export class ScheduleGenerator {
         shift_id: emp.shiftId,
         date: currentDate,
       });
-      console.log(`Assigned ${emp.employeeId} to ${isShortShift ? '4-hour' : '12-hour'} shift ${shift.name} on ${currentDate}`);
+      console.log(`Assigned ${emp.employeeId} to ${shift.name} (${shift.start_time} - ${shift.end_time}) on ${currentDate}`);
       return true;
     }
 
@@ -114,32 +107,25 @@ export class ScheduleGenerator {
           shiftId: a.shift_id,
         }));
 
-      // Shuffle employees to randomize assignments while maintaining patterns
-      const shuffledEmployees = availableEmployees.sort(() => Math.random() - 0.5);
+      // Process each shift type in order
+      const shiftTypes = ["Day Shift Early", "Day Shift", "Swing Shift", "Graveyard"];
+      
+      for (const shiftType of shiftTypes) {
+        console.log(`Processing ${shiftType} assignments`);
+        
+        // Shuffle employees to randomize assignments while maintaining patterns
+        const shuffledEmployees = availableEmployees.sort(() => Math.random() - 0.5);
 
-      // First pass: Assign 12-hour shifts
-      for (const emp of shuffledEmployees) {
-        const shift = shifts.find(s => s.id === emp.shiftId);
-        if (!shift) continue;
-
-        if (getShiftDuration(shift) >= 12) {
-          this.assignShift(schedule, currentDate, emp, shift, coverageTracker);
-        }
-      }
-
-      // Second pass: Assign 4-hour shifts based on established patterns
-      if (coverageTracker.hasUnmetRequirements()) {
         for (const emp of shuffledEmployees) {
           const shift = shifts.find(s => s.id === emp.shiftId);
           if (!shift) continue;
 
-          if (getShiftDuration(shift) <= 4) {
-            this.assignShift(schedule, currentDate, emp, shift, coverageTracker);
-          }
+          this.assignShift(schedule, currentDate, emp, shift, coverageTracker, shiftType);
         }
-      }
 
-      coverageTracker.logCoverageStatus(currentDate);
+        // Log coverage status after processing each shift type
+        console.log(`Coverage status for ${shiftType}:`, coverageTracker.getCoverageStatus());
+      }
     }
 
     // Insert all assignments
