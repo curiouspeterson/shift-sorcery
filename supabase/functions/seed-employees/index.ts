@@ -7,58 +7,33 @@ const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const supabase = createClient(supabaseUrl, serviceRoleKey)
 
 const firstNames = [
-  'James', 'John', 'Robert', 'Michael', 'William'
+  'James', 'John', 'Robert', 'Michael', 'William',
+  'David', 'Richard', 'Joseph', 'Thomas', 'Charles'
 ]
 
 const lastNames = [
-  'Smith', 'Johnson', 'Williams', 'Brown', 'Jones'
+  'Smith', 'Johnson', 'Williams', 'Brown', 'Jones',
+  'Garcia', 'Miller', 'Davis', 'Rodriguez', 'Martinez'
 ]
 
 Deno.serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
     console.log('🚀 Starting seed-employees function')
-    console.log('📝 Testing database connection...')
     
-    // First, check if we can connect to the database
-    const { data: testData, error: testError } = await supabase
-      .from('profiles')
-      .select('id')
-      .limit(1)
-    
-    if (testError) {
-      console.error('❌ Database connection test failed:', testError)
-      throw new Error(`Failed to connect to database: ${testError.message}`)
-    }
-    
-    console.log('✅ Database connection successful')
-    console.log('🔍 Checking for existing test users...')
-
-    // Get existing test users
-    const { data: existingEmails, error: existingError } = await supabase
-      .from('profiles')
-      .select('id')
-      .like('first_name', 'Test%')
-    
-    if (existingError) {
-      console.error('❌ Error fetching existing users:', existingError)
-      throw existingError
-    }
-
-    const existingUsers = new Set(existingEmails?.map(user => user.id) || [])
-    console.log(`📊 Found ${existingUsers.size} existing test users`)
-
     const employees = []
+    const timestamp = Date.now()
 
-    // Create 5 users
+    // Create 5 test users
     for (let i = 0; i < 5; i++) {
-      const firstName = `Test ${firstNames[i]}`
+      const firstName = firstNames[i]
       const lastName = lastNames[i]
-      const email = `test.${firstName.toLowerCase()}.${lastName.toLowerCase()}.${Date.now()}@example.com`
-      const role = i < 2 ? 'manager' : 'employee'
+      const email = `test.${firstName.toLowerCase()}.${lastName.toLowerCase()}.${timestamp}@example.com`
+      const role = i === 0 ? 'manager' : 'employee' // First user is manager, rest are employees
 
       try {
         console.log(`\n👤 Creating user ${email} with role ${role}`)
@@ -66,7 +41,7 @@ Deno.serve(async (req) => {
         // Create auth user with service role
         const { data: { user }, error: createUserError } = await supabase.auth.admin.createUser({
           email,
-          password: 'password123',
+          password: 'temppass123',
           email_confirm: true,
           user_metadata: {
             first_name: firstName,
