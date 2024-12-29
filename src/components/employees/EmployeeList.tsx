@@ -1,76 +1,54 @@
-import { useState } from "react";
-import { Plus } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { CreateEmployeeDialog } from "@/components/CreateEmployeeDialog";
-import { useEmployeeData } from "@/hooks/useEmployeeData";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { EmployeeCard } from "./EmployeeCard";
-import { EmployeeScheduleDialog } from "./EmployeeScheduleDialog";
 
 export function EmployeeList() {
-  const [isCreating, setIsCreating] = useState(false);
-  const [selectedEmployee, setSelectedEmployee] = useState<any>(null);
-  const [showSchedule, setShowSchedule] = useState(false);
+  const { data: employees, isLoading } = useQuery({
+    queryKey: ["employees"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .order("first_name");
 
-  const {
-    employees,
-    isLoading,
-    handleDeleteEmployee,
-    handleSeedEmployees,
-    handleSeedAvailability,
-  } = useEmployeeData();
+      if (error) {
+        console.error("Error fetching employees:", error);
+        throw error;
+      }
+
+      // Filter out duplicates based on id
+      const uniqueEmployees = data.reduce((acc: any[], current: any) => {
+        const exists = acc.find((item) => item.id === current.id);
+        if (!exists) {
+          acc.push(current);
+        } else {
+          console.warn(`Duplicate employee found with id: ${current.id}`);
+        }
+        return acc;
+      }, []);
+
+      return uniqueEmployees;
+    },
+  });
 
   if (isLoading) {
-    return <div>Loading employees...</div>;
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6">
+        {[...Array(4)].map((_, i) => (
+          <div
+            key={i}
+            className="h-48 bg-muted animate-pulse rounded-lg"
+          ></div>
+        ))}
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold">Employees</h2>
-        <div className="space-x-2">
-          <Button 
-            variant="outline"
-            onClick={handleSeedEmployees}
-          >
-            Add Test Employees
-          </Button>
-          <Button
-            variant="outline"
-            onClick={handleSeedAvailability}
-          >
-            Add Test Availability
-          </Button>
-          <Button onClick={() => setIsCreating(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            Add Employee
-          </Button>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {employees?.map((employee) => (
-          <EmployeeCard
-            key={employee.id}
-            employee={employee}
-            onDelete={handleDeleteEmployee}
-            onViewSchedule={(emp) => {
-              setSelectedEmployee(emp);
-              setShowSchedule(true);
-            }}
-          />
-        ))}
-      </div>
-
-      <CreateEmployeeDialog
-        open={isCreating}
-        onOpenChange={setIsCreating}
-      />
-
-      <EmployeeScheduleDialog
-        employee={selectedEmployee}
-        open={showSchedule}
-        onOpenChange={setShowSchedule}
-      />
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6">
+      {employees?.map((employee) => (
+        <EmployeeCard key={employee.id} employee={employee} />
+      ))}
     </div>
   );
 }
