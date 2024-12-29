@@ -71,23 +71,35 @@ serve(async (req) => {
     // For each day of the week
     for (let i = 0; i < 7; i++) {
       const currentDate = format(addDays(startDate, i), 'yyyy-MM-dd')
-      const dailyAssignments = new Set() // Track assigned employees for the day
+      const dailyAssignments = new Map() // Track assigned employees and their shifts for the day
+      
+      // Sort shifts by priority (early shifts first)
+      const sortedShifts = [...shifts].sort((a, b) => {
+        const aHour = parseInt(a.start_time.split(':')[0])
+        const bHour = parseInt(b.start_time.split(':')[0])
+        return aHour - bHour
+      })
 
       // Distribute shifts among employees
-      for (const shift of shifts) {
-        // Find an unassigned employee for this day
-        const availableEmployee = employees.find(employee => 
+      for (const shift of sortedShifts) {
+        // Filter out employees who already have a shift this day
+        const availableEmployees = employees.filter(employee => 
           !dailyAssignments.has(employee.id)
         )
 
-        if (availableEmployee) {
+        if (availableEmployees.length > 0) {
+          // Assign shift to first available employee
+          const employee = availableEmployees[0]
           assignments.push({
             schedule_id: schedule.id,
-            employee_id: availableEmployee.id,
+            employee_id: employee.id,
             shift_id: shift.id,
             date: currentDate
           })
-          dailyAssignments.add(availableEmployee.id)
+          
+          // Mark employee as assigned for this day
+          dailyAssignments.set(employee.id, shift.id)
+          console.log(`Assigned ${employee.first_name} to shift ${shift.name} on ${currentDate}`)
         }
       }
     }
