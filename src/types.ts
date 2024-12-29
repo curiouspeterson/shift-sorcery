@@ -60,3 +60,10 @@ export interface SchedulingResult {
   coverage: CoverageStatus;
   messages: string[];
 }
+
+export interface EmployeeAvailability {
+  id: string;
+  employee_id: string;
+  day_of_week: number;
+  shift_id: string;
+}
