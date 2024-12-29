@@ -5,6 +5,7 @@ import { AssignEmployeeDialog } from "./AssignEmployeeDialog";
 import { Badge } from "@/components/ui/badge";
 import { getShiftType } from "@/utils/shiftUtils";
 import { format } from "date-fns";
+import { UserPlus } from "lucide-react";
 
 interface ShiftAssignmentManagerProps {
   shift: any;
@@ -24,12 +25,12 @@ export function ShiftAssignmentManager({
   const currentAssignments = assignments.filter(a => a.shift_id === shift.id);
 
   return (
-    <Card className="mb-4">
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-lg">
-            {shift.name}
-            <Badge variant="outline" className="ml-2">
+    <Card className="relative">
+      <CardHeader className="pb-3">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <CardTitle className="text-sm sm:text-base">
+            <span className="block sm:inline">{shift.name}</span>
+            <Badge variant="outline" className="ml-0 mt-1 sm:mt-0 sm:ml-2">
               {format(new Date(`2000-01-01T${shift.start_time}`), 'h:mm a')} - 
               {format(new Date(`2000-01-01T${shift.end_time}`), 'h:mm a')}
             </Badge>
@@ -38,7 +39,9 @@ export function ShiftAssignmentManager({
             variant="outline" 
             size="sm"
             onClick={() => setIsDialogOpen(true)}
+            className="w-full sm:w-auto"
           >
+            <UserPlus className="h-4 w-4 mr-2" />
             Assign Employee
           </Button>
         </div>
@@ -48,12 +51,12 @@ export function ShiftAssignmentManager({
           {currentAssignments.map(assignment => (
             <div 
               key={assignment.id}
-              className="flex items-center justify-between p-2 bg-muted rounded-lg"
+              className="flex flex-col sm:flex-row sm:items-center justify-between p-2 bg-muted rounded-lg gap-2"
             >
-              <span>
+              <span className="text-sm">
                 {assignment.employee.first_name} {assignment.employee.last_name}
               </span>
-              <Badge variant="secondary">
+              <Badge variant="secondary" className="self-start sm:self-auto">
                 {assignment.acknowledged ? "Acknowledged" : "Pending"}
               </Badge>
             </div>
