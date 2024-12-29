@@ -4,6 +4,7 @@ export function getShiftType(startTime: string): string {
   const hour = parseInt(startTime.split(':')[0]);
   console.log(`🕒 Determining shift type for hour: ${hour}`);
   
+  // More nuanced shift type determination
   if (hour >= 4 && hour < 8) return "Day Shift Early";
   if (hour >= 8 && hour < 16) return "Day Shift";
   if (hour >= 16 && hour < 22) return "Swing Shift";
@@ -16,6 +17,7 @@ function parseTime(timeStr: string): number {
 }
 
 function normalizeMinutes(minutes: number): number {
+  // Ensure we handle full 24-hour cycles correctly
   while (minutes < 0) minutes += 24 * 60;
   return minutes % (24 * 60);
 }
@@ -26,7 +28,7 @@ function doesTimeRangeOverlap(
   periodStart: number,
   periodEnd: number
 ): boolean {
-  // Normalize all times to minutes since midnight
+  // Convert all times to minutes since midnight for consistent comparison
   shiftStart = normalizeMinutes(shiftStart);
   shiftEnd = normalizeMinutes(shiftEnd);
   periodStart = normalizeMinutes(periodStart);
@@ -50,6 +52,7 @@ function doesTimeRangeOverlap(
     console.log('🌙 Overnight period detected, adjusted end time:', Math.floor(periodEnd/60));
   }
 
+  // Check if the ranges overlap
   const overlaps = (shiftStart < periodEnd && shiftEnd > periodStart);
   console.log(`${overlaps ? '✅' : '❌'} Overlap result: ${overlaps}`);
   
@@ -78,6 +81,7 @@ export function countStaffByShiftType(assignments: any[], shiftType: string): nu
     console.log(`Current shift: ${assignment.shift.start_time} - ${assignment.shift.end_time}`);
     let overlaps = false;
     
+    // Check overlap based on shift type
     switch(shiftType) {
       case "Day Shift Early":
         overlaps = doesShiftOverlapPeriod(assignment.shift, 4, 8);
@@ -89,6 +93,7 @@ export function countStaffByShiftType(assignments: any[], shiftType: string): nu
         overlaps = doesShiftOverlapPeriod(assignment.shift, 16, 22);
         break;
       case "Graveyard":
+        // For graveyard, we need to check both ends of the day
         overlaps = doesShiftOverlapPeriod(assignment.shift, 22, 28); // 28 represents 4AM next day
         break;
     }
