@@ -68,6 +68,15 @@ serve(async (req) => {
     const assignments = []
     const startDate = new Date(weekStartDate)
 
+    // Helper function to shuffle array
+    const shuffleArray = (array: any[]) => {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+      return array;
+    }
+
     // For each day of the week
     for (let i = 0; i < 7; i++) {
       const currentDate = format(addDays(startDate, i), 'yyyy-MM-dd')
@@ -88,8 +97,10 @@ serve(async (req) => {
         )
 
         if (availableEmployees.length > 0) {
-          // Assign shift to first available employee
-          const employee = availableEmployees[0]
+          // Randomly select an available employee instead of taking the first one
+          const randomEmployees = shuffleArray([...availableEmployees])
+          const employee = randomEmployees[0]
+          
           assignments.push({
             schedule_id: schedule.id,
             employee_id: employee.id,
