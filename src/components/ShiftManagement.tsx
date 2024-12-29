@@ -30,11 +30,21 @@ export function ShiftManagement() {
 
   const createShiftMutation = useMutation({
     mutationFn: async (shiftData: typeof newShift) => {
+      // Calculate shift type based on start time
+      const hour = parseInt(shiftData.startTime.split(':')[0]);
+      let shiftType: "Day Shift Early" | "Day Shift" | "Swing Shift" | "Graveyard";
+      
+      if (hour >= 4 && hour < 8) shiftType = "Day Shift Early";
+      else if (hour >= 8 && hour < 16) shiftType = "Day Shift";
+      else if (hour >= 16 && hour < 22) shiftType = "Swing Shift";
+      else shiftType = "Graveyard";
+
       const { data, error } = await supabase.from("shifts").insert([
         {
           name: shiftData.name,
           start_time: shiftData.startTime,
           end_time: shiftData.endTime,
+          shift_type: shiftType
         },
       ]);
       if (error) throw error;

@@ -10,6 +10,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { calculateShiftHours } from "@/utils/shiftTypeUtils";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface AssignEmployeeDialogProps {
   isOpen: boolean;
@@ -30,10 +31,14 @@ export function AssignEmployeeDialog({
 }: AssignEmployeeDialogProps) {
   const [availableEmployees, setAvailableEmployees] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const queryClient = useQueryClient();
 
   const fetchAvailableEmployees = async () => {
     setLoading(true);
     try {
+      // Get the day of week (0-6) for the given date
+      const dayOfWeek = new Date(date).getDay();
+
       // Get existing assignments for this date
       const { data: existingAssignments } = await supabase
         .from('schedule_assignments')
@@ -43,11 +48,16 @@ export function AssignEmployeeDialog({
         `)
         .eq('date', date);
 
-      // Get all employees
+      // Get all employees with their availability for this day and shift
       const { data: employees } = await supabase
         .from('profiles')
-        .select('*')
-        .eq('role', 'employee');
+        .select(`
+          *,
+          employee_availability!inner(*)
+        `)
+        .eq('role', 'employee')
+        .eq('employee_availability.day_of_week', dayOfWeek)
+        .eq('employee_availability.shift_id', shiftId);
 
       if (!employees) {
         toast.error("No employees found");
@@ -101,7 +111,7 @@ export function AssignEmployeeDialog({
 
         // Skip if would exceed 40 hours
         const currentHours = employeeHours[employee.id] || 0;
-        const wouldExceedLimit = currentHours + calculateShiftHours(currentShift) > 40;
+        const wouldExceedLimit = currentHours + calculateShiftHours(currentShift) > employee.weekly_hours_limit;
         return !wouldExceedLimit;
       });
 
@@ -131,6 +141,9 @@ export function AssignEmployeeDialog({
         return;
       }
 
+      // Invalidate and refetch the schedule data
+      await queryClient.invalidateQueries({ queryKey: ['schedule'] });
+      
       toast.success("Employee assigned successfully");
       onOpenChange(false);
     } catch (error) {
@@ -158,7 +171,7 @@ export function AssignEmployeeDialog({
               </p>
             ) : availableEmployees.length === 0 ? (
               <p className="text-sm text-muted-foreground p-2">
-                No available employees found. They might be already scheduled or at their weekly hour limit.
+                No available employees found for this shift. They might be already scheduled, at their weekly hour limit, or don't have availability for this shift.
               </p>
             ) : (
               availableEmployees.map(employee => (
