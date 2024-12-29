@@ -1,6 +1,9 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useEmployeeAvailability } from "./useEmployeeAvailability";
+import { useWeeklyHours } from "./useWeeklyHours";
+import { isTimeOverlapping } from "@/utils/timeUtils";
 
 interface Employee {
   id: string;
@@ -18,6 +21,10 @@ export function useAvailableEmployees(
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const dayOfWeek = new Date(date).getDay();
+  const { availability, loading: availabilityLoading } = useEmployeeAvailability(dayOfWeek);
+  const { weeklyHours, loading: hoursLoading } = useWeeklyHours(date);
+
   useEffect(() => {
     if (isOpen && shiftId && date) {
       fetchAvailableEmployees();
@@ -27,17 +34,16 @@ export function useAvailableEmployees(
       setLoading(false);
       setError(null);
     };
-  }, [isOpen, shiftId, date]);
+  }, [isOpen, shiftId, date, availability, weeklyHours]);
 
   const fetchAvailableEmployees = async () => {
     setLoading(true);
     setError(null);
     
     try {
-      const dayOfWeek = new Date(date).getDay();
       console.log('Fetching employees for:', { date, dayOfWeek, shiftId });
 
-      // Get the shift details first for time comparison
+      // Get the shift details
       const { data: shiftDetails, error: shiftError } = await supabase
         .from('shifts')
         .select('*')
@@ -70,40 +76,6 @@ export function useAvailableEmployees(
       if (assignmentsError) throw assignmentsError;
       console.log('Existing assignments:', existingAssignments?.length || 0);
 
-      // Get availability for this day
-      const { data: availability, error: availabilityError } = await supabase
-        .from('employee_availability')
-        .select('*')
-        .eq('day_of_week', dayOfWeek);
-
-      if (availabilityError) throw availabilityError;
-      console.log('Found availability records:', availability?.length || 0);
-
-      // Get weekly assignments to check hours
-      const weekStart = new Date(date);
-      weekStart.setDate(weekStart.getDate() - weekStart.getDay());
-      const weekEnd = new Date(weekStart);
-      weekEnd.setDate(weekEnd.getDate() + 6);
-
-      const { data: weeklyAssignments, error: weeklyError } = await supabase
-        .from('schedule_assignments')
-        .select(`
-          employee_id,
-          shift:shifts(duration_hours)
-        `)
-        .gte('date', weekStart.toISOString().split('T')[0])
-        .lte('date', weekEnd.toISOString().split('T')[0]);
-
-      if (weeklyError) throw weeklyError;
-
-      // Calculate weekly hours for each employee
-      const employeeHours: Record<string, number> = {};
-      weeklyAssignments?.forEach(assignment => {
-        const hours = assignment.shift?.duration_hours || 0;
-        employeeHours[assignment.employee_id] = 
-          (employeeHours[assignment.employee_id] || 0) + Number(hours);
-      });
-
       // Filter available employees
       const scheduledEmployeeIds = new Set(
         existingAssignments?.map(a => a.employee_id) || []
@@ -116,7 +88,7 @@ export function useAvailableEmployees(
           return false;
         }
 
-        // Check if employee has any availability for this day that overlaps with the shift
+        // Check if employee has any availability that overlaps with the shift
         const employeeAvailability = availability?.filter(a => 
           a.employee_id === employee.id &&
           isTimeOverlapping(
@@ -133,7 +105,7 @@ export function useAvailableEmployees(
         }
 
         // Skip if would exceed weekly hours limit
-        const currentHours = employeeHours[employee.id] || 0;
+        const currentHours = weeklyHours[employee.id] || 0;
         const wouldExceedLimit = currentHours + Number(shiftDetails?.duration_hours || 0) > employee.weekly_hours_limit;
         
         if (wouldExceedLimit) {
@@ -155,29 +127,9 @@ export function useAvailableEmployees(
     }
   };
 
-  // Helper function to check if time ranges overlap
-  const isTimeOverlapping = (
-    shift_start: string,
-    shift_end: string,
-    avail_start: string,
-    avail_end: string
-  ): boolean => {
-    const parseTime = (time: string) => {
-      const [hours, minutes] = time.split(':').map(Number);
-      return hours * 60 + minutes;
-    };
-
-    const shiftStart = parseTime(shift_start);
-    let shiftEnd = parseTime(shift_end);
-    const availStart = parseTime(avail_start);
-    let availEnd = parseTime(avail_end);
-
-    // Handle overnight shifts
-    if (shiftEnd <= shiftStart) shiftEnd += 24 * 60;
-    if (availEnd <= availStart) availEnd += 24 * 60;
-
-    return (shiftStart < availEnd && shiftEnd > availStart);
+  return { 
+    availableEmployees, 
+    loading: loading || availabilityLoading || hoursLoading, 
+    error 
   };
-
-  return { availableEmployees, loading, error };
 }
