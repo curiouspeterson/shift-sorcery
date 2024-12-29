@@ -20,7 +20,6 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
 
     const checkAuth = async () => {
       try {
-        // First check if we have a session
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
         
         if (sessionError) {
@@ -60,7 +59,7 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
             throw new Error("Unable to retrieve user data");
           }
 
-          const { error: insertError } = await supabase
+          const { data: newProfile, error: insertError } = await supabase
             .from('profiles')
             .insert([{
               id: userData.user.id,
@@ -79,6 +78,10 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
               return;
             }
             throw new Error("Unable to create user profile after multiple attempts");
+          }
+
+          if (!newProfile) {
+            throw new Error("Profile creation failed - no profile returned");
           }
         }
 
