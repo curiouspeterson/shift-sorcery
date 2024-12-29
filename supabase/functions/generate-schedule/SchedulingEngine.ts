@@ -1,7 +1,7 @@
-import { SchedulingContext, SchedulingResult, ScheduleAssignment, CoverageStatus } from '../../../src/types/scheduling';
-import { ShiftAssignmentManager } from './ShiftAssignmentManager';
-import { ShiftRequirementsManager } from './ShiftRequirementsManager';
-import { SchedulingStrategy } from './SchedulingStrategy';
+import { SchedulingContext, SchedulingResult, ScheduleAssignment, CoverageStatus } from './types.ts';
+import { ShiftAssignmentManager } from './ShiftAssignmentManager.ts';
+import { ShiftRequirementsManager } from './ShiftRequirementsManager.ts';
+import { SchedulingStrategy } from './SchedulingStrategy.ts';
 import { format, addDays } from 'https://esm.sh/date-fns@3.3.1';
 
 export class SchedulingEngine {
