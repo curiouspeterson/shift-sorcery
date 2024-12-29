@@ -37,7 +37,17 @@ export function useAvailableEmployees(
       const dayOfWeek = new Date(date).getDay();
       console.log('Fetching employees for:', { date, dayOfWeek, shiftId });
 
-      // First get all employees
+      // Get the shift details first for time comparison
+      const { data: shiftDetails, error: shiftError } = await supabase
+        .from('shifts')
+        .select('*')
+        .eq('id', shiftId)
+        .single();
+
+      if (shiftError) throw shiftError;
+      console.log('Shift details:', shiftDetails);
+
+      // Get all employees
       const { data: employees, error: employeesError } = await supabase
         .from('profiles')
         .select('*')
@@ -60,12 +70,11 @@ export function useAvailableEmployees(
       if (assignmentsError) throw assignmentsError;
       console.log('Existing assignments:', existingAssignments?.length || 0);
 
-      // Get availability for this day and shift
+      // Get availability for this day
       const { data: availability, error: availabilityError } = await supabase
         .from('employee_availability')
-        .select('employee_id')
-        .eq('day_of_week', dayOfWeek)
-        .eq('shift_id', shiftId);
+        .select('*')
+        .eq('day_of_week', dayOfWeek);
 
       if (availabilityError) throw availabilityError;
       console.log('Found availability records:', availability?.length || 0);
@@ -95,22 +104,9 @@ export function useAvailableEmployees(
           (employeeHours[assignment.employee_id] || 0) + Number(hours);
       });
 
-      // Get the shift details for duration check
-      const { data: shiftDetails, error: shiftError } = await supabase
-        .from('shifts')
-        .select('duration_hours')
-        .eq('id', shiftId)
-        .single();
-
-      if (shiftError) throw shiftError;
-
       // Filter available employees
       const scheduledEmployeeIds = new Set(
         existingAssignments?.map(a => a.employee_id) || []
-      );
-
-      const availableEmployeeIds = new Set(
-        availability?.map(a => a.employee_id) || []
       );
 
       const available = employees.filter(employee => {
@@ -120,9 +116,19 @@ export function useAvailableEmployees(
           return false;
         }
 
-        // Skip if no availability
-        if (!availableEmployeeIds.has(employee.id)) {
-          console.log(`Employee ${employee.id} has no availability for this shift`);
+        // Check if employee has any availability for this day that overlaps with the shift
+        const employeeAvailability = availability?.filter(a => 
+          a.employee_id === employee.id &&
+          isTimeOverlapping(
+            shiftDetails.start_time,
+            shiftDetails.end_time,
+            a.start_time,
+            a.end_time
+          )
+        );
+
+        if (!employeeAvailability?.length) {
+          console.log(`Employee ${employee.id} has no overlapping availability for this shift`);
           return false;
         }
 
@@ -147,6 +153,30 @@ export function useAvailableEmployees(
     } finally {
       setLoading(false);
     }
+  };
+
+  // Helper function to check if time ranges overlap
+  const isTimeOverlapping = (
+    shift_start: string,
+    shift_end: string,
+    avail_start: string,
+    avail_end: string
+  ): boolean => {
+    const parseTime = (time: string) => {
+      const [hours, minutes] = time.split(':').map(Number);
+      return hours * 60 + minutes;
+    };
+
+    const shiftStart = parseTime(shift_start);
+    let shiftEnd = parseTime(shift_end);
+    const availStart = parseTime(avail_start);
+    let availEnd = parseTime(avail_end);
+
+    // Handle overnight shifts
+    if (shiftEnd <= shiftStart) shiftEnd += 24 * 60;
+    if (availEnd <= availStart) availEnd += 24 * 60;
+
+    return (shiftStart < availEnd && shiftEnd > availStart);
   };
 
   return { availableEmployees, loading, error };
