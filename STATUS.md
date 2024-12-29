@@ -7,13 +7,44 @@ ScheduleMe is a web-based employee scheduling application designed to help manag
 
 ### Core Tables
 - `profiles`: Stores user information and role (employee/manager)
+  - Links to auth.users for authentication
+  - Tracks weekly hour limits and role information
+  - Primary source for employee data
+
 - `shifts`: Defines available shift types and their time ranges
+  - Includes start/end times and duration
+  - Tracks maximum employee capacity
+  - Categorizes shifts (Day Early, Day, Swing, Graveyard)
+
 - `schedules`: Contains weekly schedule information
+  - Tracks status (draft/published)
+  - Links to creator (manager)
+  - Organizes assignments by week
+
 - `schedule_assignments`: Links employees to specific shifts
+  - Tracks shift acknowledgment
+  - Enables shift swapping
+  - Records assignment dates
+
 - `employee_availability`: Tracks when employees can work
+  - Flexible time ranges per day
+  - Not tied to specific shifts
+  - Supports complex availability patterns
+
 - `time_off_requests`: Manages employee time off requests
+  - Tracks request status
+  - Includes date ranges
+  - Optional reason field
+
 - `shift_swap_requests`: Handles shift trading between employees
+  - Tracks requester and volunteer
+  - Manages approval status
+  - Links to specific assignments
+
 - `coverage_requirements`: Defines minimum staffing needs
+  - Supports peak period tracking
+  - Role-specific requirements
+  - Time-based staffing levels
 
 ### Key Relationships
 - Each schedule can have multiple assignments
