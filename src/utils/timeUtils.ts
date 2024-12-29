@@ -3,34 +3,32 @@ export function parseTime(timeStr: string): number {
   return hours * 60 + minutes;
 }
 
-export function normalizeMinutes(minutes: number, referenceTime: number = 0): number {
-  while (minutes < referenceTime) minutes += 24 * 60;
-  return minutes;
+export function formatTime(minutes: number): string {
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
 }
 
 export function doesTimeRangeOverlap(
-  shiftStart: number,
-  shiftEnd: number,
-  periodStart: number,
-  periodEnd: number
+  start1: number,
+  end1: number,
+  start2: number,
+  end2: number
 ): boolean {
-  console.log(`\n⏰ Analyzing time overlap:
-    Shift: ${Math.floor(shiftStart/60)}:${String(shiftStart%60).padStart(2, '0')} - ${Math.floor(shiftEnd/60)}:${String(shiftEnd%60).padStart(2, '0')}
-    Period: ${Math.floor(periodStart/60)}:${String(periodStart%60).padStart(2, '0')} - ${Math.floor(periodEnd/60)}:${String(periodEnd%60).padStart(2, '0')}`);
+  // Handle overnight shifts
+  if (end1 < start1) end1 += 24 * 60;
+  if (end2 < start2) end2 += 24 * 60;
 
-  const normalizedShiftStart = normalizeMinutes(shiftStart, periodStart);
-  const normalizedShiftEnd = normalizeMinutes(shiftEnd, normalizedShiftStart);
-  const normalizedPeriodEnd = normalizeMinutes(periodEnd, periodStart);
+  return start1 < end2 && end1 > start2;
+}
 
-  console.log(`Normalized times (in minutes from reference):
-    Shift: ${normalizedShiftStart} - ${normalizedShiftEnd}
-    Period: ${periodStart} - ${normalizedPeriodEnd}`);
-
-  const overlaps = (
-    (normalizedShiftStart <= normalizedPeriodEnd && normalizedShiftEnd >= periodStart) ||
-    (normalizedShiftStart <= periodStart && normalizedShiftEnd >= periodStart)
-  );
-
-  console.log(`${overlaps ? '✅' : '❌'} Overlap result: ${overlaps}`);
-  return overlaps;
+export function calculateShiftDuration(startTime: string, endTime: string): number {
+  const start = parseTime(startTime);
+  let end = parseTime(endTime);
+  
+  if (end <= start) {
+    end += 24 * 60;
+  }
+  
+  return (end - start) / 60;
 }
