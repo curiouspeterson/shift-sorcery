@@ -13,18 +13,17 @@ export async function generateScheduleForWeek(selectedDate: Date, userId: string
     
     // Check for existing schedule
     console.log('🔍 Checking for existing schedule for week:', weekStartDate);
-    const { data: existingSchedule, error: checkError } = await supabase
+    const { data: existingSchedules, error: checkError } = await supabase
       .from('schedules')
       .select()
-      .eq('week_start_date', weekStartDate)
-      .maybeSingle();
+      .eq('week_start_date', weekStartDate);
 
     if (checkError) {
       console.error('❌ Error checking existing schedule:', checkError);
       throw checkError;
     }
 
-    if (existingSchedule) {
+    if (existingSchedules && existingSchedules.length > 0) {
       console.warn('⚠️ Schedule already exists for week:', weekStartDate);
       throw new Error('A schedule already exists for this week');
     }
