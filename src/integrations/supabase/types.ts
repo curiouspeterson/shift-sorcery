@@ -52,6 +52,7 @@ export type Database = {
           employee_id: string
           end_time: string
           id: string
+          shift_id: string | null
           start_time: string
           updated_at: string
         }
@@ -61,6 +62,7 @@ export type Database = {
           employee_id: string
           end_time: string
           id?: string
+          shift_id?: string | null
           start_time: string
           updated_at?: string
         }
@@ -70,6 +72,7 @@ export type Database = {
           employee_id?: string
           end_time?: string
           id?: string
+          shift_id?: string | null
           start_time?: string
           updated_at?: string
         }
@@ -79,6 +82,13 @@ export type Database = {
             columns: ["employee_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_availability_shift_id_fkey"
+            columns: ["shift_id"]
+            isOneToOne: false
+            referencedRelation: "shifts"
             referencedColumns: ["id"]
           },
         ]

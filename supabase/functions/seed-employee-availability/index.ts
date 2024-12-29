@@ -84,19 +84,6 @@ Deno.serve(async (req) => {
 
     console.log('Cleared existing availability entries')
 
-    // Group shifts by duration
-    const shiftsByDuration = allShifts.reduce((acc, shift) => {
-      const startHour = parseInt(shift.start_time.split(':')[0])
-      const endHour = parseInt(shift.end_time.split(':')[0])
-      const duration = (endHour < startHour ? endHour + 24 : endHour) - startHour
-      
-      if (!acc[duration]) {
-        acc[duration] = []
-      }
-      acc[duration].push(shift)
-      return acc
-    }, {})
-
     // Create availability entries
     const availabilityEntries = []
     const patterns = Object.values(SHIFT_PATTERNS)
@@ -125,9 +112,7 @@ Deno.serve(async (req) => {
         availabilityEntries.push({
           employee_id: employee.id,
           day_of_week: (startDay + i) % 7,
-          shift_id: selectedShift.id,
-          start_time: selectedShift.start_time,
-          end_time: selectedShift.end_time,
+          shift_id: selectedShift.id
         })
       }
     })
