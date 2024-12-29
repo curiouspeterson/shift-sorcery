@@ -12,9 +12,25 @@ interface ShiftLabelProps {
   date: string;
 }
 
+const getShiftColor = (shiftType: string) => {
+  switch (shiftType) {
+    case "Day Shift Early":
+      return "text-green-600";
+    case "Day Shift":
+      return "text-orange-600";
+    case "Swing Shift":
+      return "text-purple-600";
+    case "Graveyard":
+      return "text-pink-600";
+    default:
+      return "text-muted-foreground";
+  }
+};
+
 export function ShiftLabel({ shiftType, currentStaff, minStaff, date }: ShiftLabelProps) {
   const queryClient = useQueryClient();
   const isMet = currentStaff >= minStaff;
+  const baseColor = getShiftColor(shiftType);
   const color = isMet ? "text-green-500" : "text-red-500";
 
   const { data: shifts } = useQuery({
@@ -28,7 +44,7 @@ export function ShiftLabel({ shiftType, currentStaff, minStaff, date }: ShiftLab
       
       // Handle the overnight shift case specially
       if (startHour === 22) {
-        query = query.or(`start_time.gte.${startHour}:00,start_time.lt.23:59`);
+        query = query.or(`start_time.gte.${startHour}:00,start_time.lt.06:00`); // Updated to 6 AM for graveyard
       } else {
         const endHour = startHour + 8;
         query = query.gte('start_time', `${startHour}:00`).lt('start_time', `${endHour}:00`);
@@ -62,7 +78,7 @@ export function ShiftLabel({ shiftType, currentStaff, minStaff, date }: ShiftLab
       case "Swing Shift":
         return 16;
       case "Graveyard":
-        return 22;
+        return 22; // Graveyard shift starts at 10 PM
       default:
         return 0;
     }
@@ -70,8 +86,11 @@ export function ShiftLabel({ shiftType, currentStaff, minStaff, date }: ShiftLab
 
   return (
     <div className="flex items-center gap-1 text-sm">
+      <span className={`${baseColor} font-medium`}>
+        {shiftType}{" "}
+      </span>
       <span className={color}>
-        {shiftType} ({currentStaff}/{minStaff})
+        ({currentStaff}/{minStaff})
       </span>
       <Button
         variant="ghost"
