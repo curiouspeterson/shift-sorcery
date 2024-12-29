@@ -47,6 +47,12 @@ export function ScheduleCalendar({
 
   const shiftTypes = ["Day Shift Early", "Day Shift", "Swing Shift", "Graveyard"];
 
+  const getShiftAssignments = (assignments: any[], date: string) => {
+    return assignments?.filter(
+      (assignment: any) => assignment.date === date
+    ) || [];
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -55,11 +61,8 @@ export function ScheduleCalendar({
       <CardContent>
         <div className="space-y-6">
           {Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)).map((day) => {
-            const dayAssignments = scheduleData?.schedule_assignments?.filter(
-              (assignment: any) =>
-                assignment.date === format(day, "yyyy-MM-dd")
-            ) || [];
-
+            const formattedDate = format(day, "yyyy-MM-dd");
+            const dayAssignments = getShiftAssignments(scheduleData?.schedule_assignments, formattedDate);
             const sortedAssignments = sortAssignmentsByShiftTime(dayAssignments);
 
             return (
@@ -76,7 +79,7 @@ export function ScheduleCalendar({
                         shiftType={shiftType}
                         currentStaff={currentStaff}
                         minStaff={minStaff}
-                        date={format(day, "yyyy-MM-dd")}
+                        date={formattedDate}
                       />
                     );
                   })}

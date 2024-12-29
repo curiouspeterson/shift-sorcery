@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { getShiftType } from "./ShiftUtils";
 
 interface ShiftLabelProps {
   shiftType: string;
@@ -45,7 +46,6 @@ export function ShiftLabel({ shiftType, currentStaff, minStaff, date }: ShiftLab
 
   const addEmployeeMutation = useMutation({
     mutationFn: async () => {
-      // For now, just show a toast - this will be implemented in a future update
       toast.info("This feature will be implemented soon!");
     },
     onSuccess: () => {
