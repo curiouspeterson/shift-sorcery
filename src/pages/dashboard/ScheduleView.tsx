@@ -1,25 +1,40 @@
 import { ScheduleGenerator } from "@/components/ScheduleGenerator";
 import { useQuery } from "@tanstack/react-query";
 import { getEmployeeStats } from "@/utils/employeeStats";
+import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function ScheduleView() {
-  const { data: stats } = useQuery({
+  const { data: stats, isLoading } = useQuery({
     queryKey: ['employee-stats', new Date()],
     queryFn: () => getEmployeeStats(new Date()),
   });
 
   return (
     <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Schedule</h1>
-        {stats && (
-          <div className="text-sm text-muted-foreground">
-            <span className="mr-4">Total Employees: {stats.totalEmployees}</span>
-            <span>Employees with Shifts this Week: {stats.employeesWithShifts}</span>
-          </div>
-        )}
+      <div className="flex flex-col gap-6">
+        <div className="flex justify-between items-center">
+          <h1 className="text-2xl font-bold">Schedule</h1>
+          <Card className="p-4">
+            {isLoading ? (
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-48" />
+                <Skeleton className="h-4 w-40" />
+              </div>
+            ) : (
+              <div className="text-sm space-y-1">
+                <p className="text-muted-foreground">
+                  Total Employees: <span className="font-medium text-foreground">{stats?.totalEmployees || 0}</span>
+                </p>
+                <p className="text-muted-foreground">
+                  Employees with Shifts: <span className="font-medium text-foreground">{stats?.employeesWithShifts || 0}</span>
+                </p>
+              </div>
+            )}
+          </Card>
+        </div>
+        <ScheduleGenerator />
       </div>
-      <ScheduleGenerator />
     </div>
   );
 }
