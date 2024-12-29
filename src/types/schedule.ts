@@ -1,3 +1,5 @@
+import { CoverageStatus } from './coverage';
+
 export interface ScheduleAssignment {
   schedule_id: string;
   employee_id: string;
