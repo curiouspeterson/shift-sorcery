@@ -1,5 +1,5 @@
 import { Employee, Shift, ScheduleAssignment, EmployeeAvailability } from '../types';
-import { getShiftType } from '@/utils/shiftUtils';
+import { getShiftType } from '../utils/shiftUtils';
 import { SCHEDULING_CONSTANTS } from '../constants';
 
 export class ShiftDistributor {
@@ -10,9 +10,10 @@ export class ShiftDistributor {
     shifts: Shift[],
     availability: EmployeeAvailability[]
   ): ScheduleAssignment[] {
-    console.log(`\n📋 Starting shift distribution for ${date}`);
+    console.log(`\n📋 Distributing shifts for date: ${date}`);
     const assignments: ScheduleAssignment[] = [];
     const dayOfWeek = new Date(date).getDay();
+    const assignedToday = new Set<string>();
 
     // Sort shifts by priority (graveyard > early > day > swing)
     const sortedShifts = [...shifts].sort((a, b) => {
@@ -21,55 +22,52 @@ export class ShiftDistributor {
       return priorityA - priorityB;
     });
 
-    // Track assigned employees for this day
-    const assignedEmployees = new Set<string>();
+    console.log(`Found ${employees.length} total employees`);
+    console.log(`Found ${shifts.length} total shifts`);
+    console.log(`Found ${availability.length} availability records`);
 
     for (const shift of sortedShifts) {
       const shiftType = getShiftType(shift.start_time);
-      const minRequired = SCHEDULING_CONSTANTS.MIN_STAFF[shiftType as keyof typeof SCHEDULING_CONSTANTS.MIN_STAFF];
-      const maxAllowed = shift.max_employees || minRequired;
-
       console.log(`\n🔄 Processing ${shift.name} (${shiftType})`);
-      console.log(`Required: ${minRequired}, Max Allowed: ${maxAllowed}`);
 
-      // Get available employees for this shift
-      let availableEmployees = this.getAvailableEmployees(
+      const availableEmployees = this.getAvailableEmployees(
         employees,
         shift,
         availability,
         dayOfWeek,
         assignments,
-        assignedEmployees
+        assignedToday
       );
 
-      console.log(`Found ${availableEmployees.length} available employees`);
+      console.log(`Found ${availableEmployees.length} available employees for ${shift.name}`);
 
-      // Sort employees by hours worked (ascending) to ensure fair distribution
-      availableEmployees.sort((a, b) => {
-        const aAssignments = assignments.filter(ass => ass.employee_id === a.id).length;
-        const bAssignments = assignments.filter(ass => ass.employee_id === b.id).length;
-        return aAssignments - bAssignments;
-      });
-
-      // Assign employees up to the required minimum or maximum allowed
-      const toAssign = Math.min(maxAllowed, Math.max(minRequired, availableEmployees.length));
-      
-      for (let i = 0; i < toAssign && i < availableEmployees.length; i++) {
-        const employee = availableEmployees[i];
-        assignments.push({
-          schedule_id: scheduleId,
-          employee_id: employee.id,
-          shift_id: shift.id,
-          date: date
+      if (availableEmployees.length > 0) {
+        // Sort employees by weekly hours (ascending) to ensure fair distribution
+        availableEmployees.sort((a, b) => {
+          const aHours = this.calculateWeeklyHours(a.id, assignments, shift);
+          const bHours = this.calculateWeeklyHours(b.id, assignments, shift);
+          return aHours - bHours;
         });
-        assignedEmployees.add(employee.id);
-        console.log(`✅ Assigned ${employee.id} to ${shift.name}`);
-      }
 
-      const assigned = assignments.filter(a => a.shift_id === shift.id).length;
-      console.log(`📊 Final assignments for ${shift.name}: ${assigned}/${minRequired} (min) or ${maxAllowed} (max)`);
+        // Assign up to max_employees or all available employees
+        const maxToAssign = shift.max_employees || availableEmployees.length;
+        for (let i = 0; i < Math.min(maxToAssign, availableEmployees.length); i++) {
+          const employee = availableEmployees[i];
+          assignments.push({
+            schedule_id: scheduleId,
+            employee_id: employee.id,
+            shift_id: shift.id,
+            date: date
+          });
+          assignedToday.add(employee.id);
+          console.log(`✅ Assigned ${employee.id} to ${shift.name}`);
+        }
+      } else {
+        console.log(`❌ No available employees for ${shift.name}`);
+      }
     }
 
+    console.log(`\n📊 Total assignments made: ${assignments.length}`);
     return assignments;
   }
 
@@ -89,17 +87,24 @@ export class ShiftDistributor {
       }
 
       // Check if employee has availability for this shift and day
-      const hasAvailability = availability.some(
-        avail =>
-          avail.employee_id === employee.id &&
-          avail.day_of_week === dayOfWeek &&
-          this.isTimeWithinAvailability(
-            shift.start_time,
-            shift.end_time,
-            avail.start_time,
-            avail.end_time
-          )
-      );
+      const hasAvailability = availability.some(avail => {
+        if (avail.employee_id !== employee.id || avail.day_of_week !== dayOfWeek) {
+          return false;
+        }
+
+        // If shift_id is directly specified in availability, use that
+        if (avail.shift_id) {
+          return avail.shift_id === shift.id;
+        }
+
+        // Otherwise check time range overlap
+        return this.isTimeWithinAvailability(
+          shift.start_time,
+          shift.end_time,
+          avail.start_time,
+          avail.end_time
+        );
+      });
 
       if (!hasAvailability) {
         console.log(`Employee ${employee.id} not available for this shift`);
