@@ -35,85 +35,31 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
           return;
         }
 
-        // Verify the session is still valid
-        const { error: userError } = await supabase.auth.getUser();
-        if (userError) {
-          console.error('User error:', userError);
-          throw userError;
-        }
-
-        // Check if user has a profile
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .maybeSingle();
-
-        if (profileError) {
-          console.error("Profile error:", profileError);
-          throw new Error("Error checking user profile");
-        }
-
-        if (!profile) {
-          console.log("No profile found, attempting to create one");
-          const { data: userData } = await supabase.auth.getUser();
-          
-          if (!userData.user) {
-            throw new Error("Unable to retrieve user data");
-          }
-
-          const { data: newProfile, error: insertError } = await supabase
-            .from('profiles')
-            .insert([{
-              id: userData.user.id,
-              first_name: userData.user.user_metadata.first_name || '',
-              last_name: userData.user.user_metadata.last_name || '',
-              role: userData.user.user_metadata.role || 'employee'
-            }])
-            .select()
-            .single();
-
-          if (insertError) {
-            console.error("Error creating profile:", insertError);
-            if (retryCount < MAX_RETRIES) {
-              setRetryCount(prev => prev + 1);
-              retryTimeout = setTimeout(checkAuth, 1000 * (retryCount + 1));
-              return;
-            }
-            throw new Error("Unable to create user profile after multiple attempts");
-          }
-
-          if (!newProfile) {
-            throw new Error("Profile creation failed - no profile returned");
-          }
-        }
-
+        // Reset retry count on successful auth
         if (mounted) {
-          setIsLoading(false);
-          setAuthError(null);
           setRetryCount(0);
+          setAuthError(null);
+          setIsLoading(false);
         }
+
       } catch (error: any) {
         console.error("Auth error:", error);
         if (mounted) {
-          if (retryCount < MAX_RETRIES && error.message === "Failed to fetch") {
+          if (retryCount < MAX_RETRIES) {
             console.log(`Retrying auth check (attempt ${retryCount + 1}/${MAX_RETRIES})...`);
             setRetryCount(prev => prev + 1);
-            retryTimeout = setTimeout(checkAuth, 1000 * (retryCount + 1));
+            retryTimeout = setTimeout(checkAuth, 1000 * Math.pow(2, retryCount)); // Exponential backoff
             return;
           }
           
           setAuthError(error.message);
+          setIsLoading(false);
           await clearAuthData();
+          navigate("/");
           
-          if (error.message === "No session found") {
-            navigate("/");
-          } else {
-            toast.error("Authentication error", {
-              description: error.message
-            });
-            navigate("/");
-          }
+          toast.error("Authentication error", {
+            description: error.message
+          });
         }
       }
     };
@@ -134,6 +80,17 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
     };
   }, [navigate, retryCount]);
 
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin mb-4" />
+        <p className="text-muted-foreground">
+          {retryCount > 0 ? `Retrying connection (${retryCount}/${MAX_RETRIES})...` : 'Loading your dashboard...'}
+        </p>
+      </div>
+    );
+  }
+
   if (authError) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-4">
@@ -144,15 +101,6 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
         >
           Return to Login
         </button>
-      </div>
-    );
-  }
-
-  if (isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen">
-        <Loader2 className="h-8 w-8 animate-spin mb-4" />
-        <p className="text-muted-foreground">Loading your dashboard...</p>
       </div>
     );
   }
