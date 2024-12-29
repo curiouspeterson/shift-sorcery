@@ -9,7 +9,13 @@ const supabase = createClient(supabaseUrl, serviceRoleKey)
 Deno.serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { 
+      headers: {
+        ...corsHeaders,
+        'Access-Control-Max-Age': '86400',
+        'Content-Type': 'application/json'
+      }
+    })
   }
 
   try {
@@ -89,7 +95,11 @@ Deno.serve(async (req) => {
         user: user 
       }),
       { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { 
+          ...corsHeaders, 
+          'Content-Type': 'application/json',
+          'Access-Control-Max-Age': '86400'
+        },
         status: 200,
       },
     )
@@ -101,7 +111,11 @@ Deno.serve(async (req) => {
         details: 'Check function logs for more information'
       }),
       { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { 
+          ...corsHeaders, 
+          'Content-Type': 'application/json',
+          'Access-Control-Max-Age': '86400'
+        },
         status: 400,
       },
     )

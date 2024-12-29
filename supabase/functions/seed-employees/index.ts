@@ -53,6 +53,7 @@ Deno.serve(async (req) => {
       headers: {
         ...corsHeaders,
         'Access-Control-Max-Age': '86400',
+        'Content-Type': 'application/json'
       }
     })
   }
@@ -63,7 +64,11 @@ Deno.serve(async (req) => {
         JSON.stringify({ error: 'Method not allowed' }), 
         { 
           status: 405,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          headers: { 
+            ...corsHeaders, 
+            'Content-Type': 'application/json',
+            'Access-Control-Max-Age': '86400'
+          }
         }
       )
     }
@@ -165,7 +170,11 @@ Deno.serve(async (req) => {
         created: employees.length 
       }),
       { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { 
+          ...corsHeaders, 
+          'Content-Type': 'application/json',
+          'Access-Control-Max-Age': '86400'
+        },
         status: 200
       }
     )
@@ -177,7 +186,11 @@ Deno.serve(async (req) => {
         details: 'Check function logs for more information'
       }),
       { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { 
+          ...corsHeaders, 
+          'Content-Type': 'application/json',
+          'Access-Control-Max-Age': '86400'
+        },
         status: 500
       }
     )
