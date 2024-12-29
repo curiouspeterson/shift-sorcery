@@ -4,9 +4,8 @@ import { format, startOfWeek, addWeeks, subWeeks } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { ScheduleCalendar } from "./schedule/ScheduleCalendar";
 import { ScheduleControls } from "./schedule/ScheduleControls";
-import { Button } from "./ui/button";
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
+import { ScheduleHeader } from "./schedule/ScheduleHeader";
+import { Card, CardContent, CardHeader } from "./ui/card";
 import { toast } from "sonner";
 
 export function ScheduleGenerator() {
@@ -84,22 +83,11 @@ export function ScheduleGenerator() {
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>Schedule Management</CardTitle>
-            <div className="flex items-center gap-4">
-              <Button variant="outline" onClick={handlePreviousWeek}>
-                <ChevronLeft className="h-4 w-4 mr-2" />
-                Previous Week
-              </Button>
-              <span className="font-medium">
-                Week of {format(startOfWeek(selectedDate), "MMM d, yyyy")}
-              </span>
-              <Button variant="outline" onClick={handleNextWeek}>
-                Next Week
-                <ChevronRight className="h-4 w-4 ml-2" />
-              </Button>
-            </div>
-          </div>
+          <ScheduleHeader
+            selectedDate={selectedDate}
+            onPreviousWeek={handlePreviousWeek}
+            onNextWeek={handleNextWeek}
+          />
         </CardHeader>
         <CardContent>
           <ScheduleControls
