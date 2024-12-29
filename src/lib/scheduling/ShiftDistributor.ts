@@ -12,10 +12,25 @@ export class ShiftDistributor {
     const assignments: ScheduleAssignment[] = [];
     const dayOfWeek = new Date(date).getDay();
 
-    // Sort shifts by start time to ensure consistent assignment order
-    const sortedShifts = [...shifts].sort((a, b) => 
-      a.start_time.localeCompare(b.start_time)
-    );
+    // Sort shifts by priority - overnight shifts first, then by start time
+    const sortedShifts = [...shifts].sort((a, b) => {
+      const aStart = this.parseTimeToMinutes(a.start_time);
+      const bStart = this.parseTimeToMinutes(b.start_time);
+      
+      // Prioritize overnight shifts (starts after 8 PM)
+      const aIsOvernight = aStart >= 20 * 60; // 8 PM
+      const bIsOvernight = bStart >= 20 * 60;
+      
+      if (aIsOvernight !== bIsOvernight) {
+        return aIsOvernight ? -1 : 1;
+      }
+      
+      // Then sort by start time
+      return aStart - bStart;
+    });
+
+    console.log(`📊 Processing shifts for ${date} in order:`, 
+      sortedShifts.map(s => `${s.name} (${s.start_time}-${s.end_time})`));
 
     for (const shift of sortedShifts) {
       const availableEmployees = this.getAvailableEmployees(
@@ -26,15 +41,28 @@ export class ShiftDistributor {
         assignments
       );
 
+      console.log(`👥 Found ${availableEmployees.length} available employees for ${shift.name}`);
+
       if (availableEmployees.length > 0) {
-        // For now, assign the first available employee
-        const employee = availableEmployees[0];
+        // Sort employees by their weekly hours (ascending) to ensure fair distribution
+        const sortedEmployees = [...availableEmployees].sort((a, b) => {
+          const aHours = this.getEmployeeWeeklyHours(a.id, assignments) || 0;
+          const bHours = this.getEmployeeWeeklyHours(b.id, assignments) || 0;
+          return aHours - bHours;
+        });
+
+        // Assign the employee with the least hours
+        const employee = sortedEmployees[0];
         assignments.push({
           schedule_id: scheduleId,
           employee_id: employee.id,
           shift_id: shift.id,
           date: date
         });
+
+        console.log(`✅ Assigned ${employee.first_name} ${employee.last_name} to ${shift.name}`);
+      } else {
+        console.log(`⚠️ No available employees for ${shift.name}`);
       }
     }
 
@@ -53,7 +81,18 @@ export class ShiftDistributor {
       const alreadyAssigned = existingAssignments.some(
         assignment => assignment.employee_id === employee.id
       );
-      if (alreadyAssigned) return false;
+      if (alreadyAssigned) {
+        console.log(`👤 ${employee.first_name} already assigned for this day`);
+        return false;
+      }
+
+      // Check weekly hours limit
+      const currentHours = this.getEmployeeWeeklyHours(employee.id, existingAssignments);
+      const shiftHours = this.getShiftHours(shift);
+      if (currentHours + shiftHours > employee.weekly_hours_limit) {
+        console.log(`👤 ${employee.first_name} would exceed weekly hours limit`);
+        return false;
+      }
 
       // Check if employee has availability for this shift and day
       const hasAvailability = availability.some(
@@ -68,6 +107,10 @@ export class ShiftDistributor {
           )
       );
 
+      if (!hasAvailability) {
+        console.log(`👤 ${employee.first_name} not available for this shift`);
+      }
+
       return hasAvailability;
     });
   }
@@ -78,17 +121,44 @@ export class ShiftDistributor {
     availStart: string,
     availEnd: string
   ): boolean {
-    // Convert times to minutes for easier comparison
-    const convertToMinutes = (time: string) => {
-      const [hours, minutes] = time.split(':').map(Number);
-      return hours * 60 + minutes;
-    };
+    const shiftStartMins = this.parseTimeToMinutes(shiftStart);
+    const shiftEndMins = this.parseTimeToMinutes(shiftEnd);
+    const availStartMins = this.parseTimeToMinutes(availStart);
+    const availEndMins = this.parseTimeToMinutes(availEnd);
 
-    const shiftStartMins = convertToMinutes(shiftStart);
-    const shiftEndMins = convertToMinutes(shiftEnd);
-    const availStartMins = convertToMinutes(availStart);
-    const availEndMins = convertToMinutes(availEnd);
+    // Handle overnight shifts
+    if (shiftEndMins <= shiftStartMins) {
+      // Shift crosses midnight
+      return (availEndMins <= availStartMins && // Availability also crosses midnight
+              shiftStartMins >= availStartMins) || // Start time is within availability
+             (availEndMins > availStartMins && // Regular availability
+              shiftStartMins >= availStartMins &&
+              shiftEndMins <= availEndMins);
+    }
 
+    // Regular shift (doesn't cross midnight)
     return shiftStartMins >= availStartMins && shiftEndMins <= availEndMins;
+  }
+
+  private parseTimeToMinutes(time: string): number {
+    const [hours, minutes] = time.split(':').map(Number);
+    return hours * 60 + minutes;
+  }
+
+  private getEmployeeWeeklyHours(employeeId: string, assignments: ScheduleAssignment[]): number {
+    return assignments
+      .filter(a => a.employee_id === employeeId)
+      .reduce((total, assignment) => total + this.getShiftHours(assignment), 0);
+  }
+
+  private getShiftHours(shift: Shift): number {
+    const startMins = this.parseTimeToMinutes(shift.start_time);
+    let endMins = this.parseTimeToMinutes(shift.end_time);
+    
+    if (endMins <= startMins) {
+      endMins += 24 * 60; // Add 24 hours for overnight shifts
+    }
+    
+    return (endMins - startMins) / 60;
   }
 }
