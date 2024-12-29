@@ -11,43 +11,71 @@ export class EmployeeScoring {
     let score = 100;
 
     // Factor 1: Weekly hours balance (0-30 points)
+    score += this.calculateHoursBalanceScore(employee, shift);
+
+    // Factor 2: Consecutive days (0-20 points)
+    score += this.calculateConsecutiveDaysScore(employee.id, currentDate, existingAssignments);
+
+    // Factor 3: Shift type preference (0-30 points)
+    score += this.calculatePreferenceScore(employee.id, shift.shift_type);
+
+    // Factor 4: Peak period handling (0-20 points)
+    if (isPeakPeriod) {
+      score += this.calculatePeakPeriodScore(employee);
+    }
+
+    // Factor 5: Distribution balance (0-15 points)
+    score += this.calculateDistributionScore(employee.id, shift.shift_type, existingAssignments);
+
+    // Factor 6: Random factor (0-5 points) to prevent ties
+    score += Math.random() * 5;
+
+    return Math.max(0, Math.min(100, score));
+  }
+
+  private calculateHoursBalanceScore(employee: any, shift: any): number {
     const currentHours = this.weeklyHoursTracker.getCurrentHours(employee.id);
     const hoursAfterShift = currentHours + parseFloat(shift.duration_hours);
     const targetHours = employee.weekly_hours_limit;
     
     if (hoursAfterShift <= targetHours) {
-      const hoursFactor = 30 * (hoursAfterShift / targetHours);
-      score += hoursFactor;
-    } else {
-      score -= 50;
+      // Reward assignments that help reach target hours
+      return 30 * (hoursAfterShift / targetHours);
     }
+    return -50; // Significant penalty for exceeding hours limit
+  }
 
-    // Factor 2: Consecutive days (0-20 points)
-    const consecutiveDays = this.getConsecutiveWorkDays(employee.id, currentDate, existingAssignments);
+  private calculateConsecutiveDaysScore(
+    employeeId: string,
+    currentDate: string,
+    assignments: any[]
+  ): number {
+    const consecutiveDays = this.getConsecutiveWorkDays(employeeId, currentDate, assignments);
     if (consecutiveDays >= 5) {
-      score -= 20;
-    } else {
-      score += 20 - (consecutiveDays * 4);
+      return -20; // Heavy penalty for too many consecutive days
     }
+    return 20 - (consecutiveDays * 4); // Decreasing score for each consecutive day
+  }
 
-    // Factor 3: Shift type preference (0-30 points)
-    const preferenceScore = this.getPreferenceScore(employee.id, shift.shift_type);
-    score += preferenceScore;
+  private calculatePreferenceScore(employeeId: string, shiftType: string): number {
+    const preferenceLevel = this.getEmployeeShiftPreference(employeeId, shiftType);
+    return preferenceLevel * 10; // 0-30 points based on preference level (0-3)
+  }
 
-    // Factor 4: Peak period handling (0-20 points)
-    if (isPeakPeriod) {
-      const peakPeriodScore = this.getPeakPeriodScore(employee, shift);
-      score += peakPeriodScore;
-    }
+  private calculatePeakPeriodScore(employee: any): number {
+    const experienceScore = this.calculateExperienceScore(employee);
+    return Math.min(20, experienceScore);
+  }
 
-    // Factor 5: Distribution balance (0-15 points)
-    const distributionScore = this.getDistributionScore(employee.id, shift.shift_type, existingAssignments);
-    score += distributionScore;
-
-    // Factor 6: Random factor (0-5 points)
-    score += Math.random() * 5;
-
-    return Math.max(0, score);
+  private calculateDistributionScore(
+    employeeId: string,
+    shiftType: string,
+    assignments: any[]
+  ): number {
+    const shiftTypeCount = assignments.filter(
+      a => a.employee_id === employeeId && a.shift.shift_type === shiftType
+    ).length;
+    return Math.max(0, 15 - (shiftTypeCount * 3));
   }
 
   private getConsecutiveWorkDays(
@@ -78,35 +106,15 @@ export class EmployeeScoring {
     return consecutiveDays;
   }
 
-  private getPreferenceScore(employeeId: string, shiftType: string): number {
-    // Higher score for preferred shift types
-    const preferenceLevel = this.getEmployeeShiftPreference(employeeId, shiftType);
-    return preferenceLevel * 10; // 0-30 points based on preference level (0-3)
-  }
-
-  private getPeakPeriodScore(employee: any, shift: any): number {
-    // Prioritize experienced employees during peak periods
-    const experienceScore = this.calculateExperienceScore(employee);
-    return Math.min(20, experienceScore);
-  }
-
-  private getDistributionScore(employeeId: string, shiftType: string, assignments: any[]): number {
-    // Calculate how many times this employee has been assigned this shift type
-    const shiftTypeCount = assignments.filter(
-      a => a.employee_id === employeeId && a.shift.shift_type === shiftType
-    ).length;
-
-    // Lower score if employee has been assigned this shift type frequently
-    return Math.max(0, 15 - (shiftTypeCount * 3));
-  }
-
   private calculateExperienceScore(employee: any): number {
-    // This could be enhanced with actual experience data
-    return 15; // Default medium experience score
+    // This could be enhanced with actual experience data from the database
+    // For now, using a default medium experience score
+    return 15;
   }
 
   private getEmployeeShiftPreference(employeeId: string, shiftType: string): number {
     // This should be replaced with actual preference data from the database
-    return 2; // Default medium preference
+    // For now, using a default medium preference
+    return 2;
   }
 }
