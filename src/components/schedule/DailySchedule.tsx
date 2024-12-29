@@ -1,8 +1,9 @@
 import { format } from "date-fns";
-import { ShiftLabel } from "./ShiftLabel";
-import { AssignmentsList } from "./AssignmentsList";
-import { getShiftType } from "@/utils/shiftUtils";
-import { sortAssignmentsByShiftType } from "@/utils/assignmentSorting";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ShiftAssignmentManager } from "./ShiftAssignmentManager";
+import { CoverageRequirementTracker } from "./CoverageRequirementTracker";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 interface DailyScheduleProps {
   day: Date;
@@ -17,56 +18,56 @@ export function DailySchedule({
   coverageRequirements,
   formattedDate 
 }: DailyScheduleProps) {
-  const shiftTypes = ["Day Shift Early", "Day Shift", "Swing Shift", "Graveyard"];
-
-  const getShiftAssignments = (assignments: any[], date: string) => {
-    return assignments?.filter(
-      (assignment: any) => assignment.date === date
-    ) || [];
-  };
-
-  const dayAssignments = getShiftAssignments(scheduleData?.schedule_assignments, formattedDate);
-  const sortedAssignments = sortAssignmentsByShiftType(dayAssignments);
-
-  // Get the first shift ID for each shift type
-  const shiftIds = new Map<string, string>();
-  dayAssignments.forEach((assignment: any) => {
-    const type = getShiftType(assignment.shift.start_time);
-    if (!shiftIds.has(type)) {
-      shiftIds.set(type, assignment.shift.id);
+  const { data: shifts } = useQuery({
+    queryKey: ['shifts'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('shifts')
+        .select('*')
+        .order('start_time');
+      
+      if (error) throw error;
+      return data;
     }
   });
 
+  const dayAssignments = scheduleData?.schedule_assignments?.filter(
+    (assignment: any) => assignment.date === formattedDate
+  ) || [];
+
   return (
-    <div className="border-b pb-4 last:border-0">
-      <h3 className="font-medium mb-2">{format(day, "EEEE, MMM d")}</h3>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
-        {shiftTypes.map(shiftType => {
-          const shiftId = shiftIds.get(shiftType);
-          return (
-            <ShiftLabel
-              key={shiftType}
-              shiftType={shiftType}
-              currentStaff={dayAssignments.filter(
-                (assignment: any) => getShiftType(assignment.shift.start_time) === shiftType
-              ).length}
-              minStaff={coverageRequirements?.reduce((max, req) => {
-                if (getShiftType(req.start_time) === shiftType) {
-                  return Math.max(max, req.min_employees);
-                }
-                return max;
-              }, 0) || 0}
-              date={formattedDate}
-              scheduleId={scheduleData?.id}
-              shiftId={shiftId || ''}
-            />
-          );
-        })}
-      </div>
-      <AssignmentsList 
-        assignments={sortedAssignments}
-        scheduleData={scheduleData}
-      />
-    </div>
+    <Card className="mb-6">
+      <CardHeader>
+        <CardTitle>{format(day, "EEEE, MMMM d")}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <h3 className="text-lg font-medium mb-4">Shift Assignments</h3>
+              {shifts?.map(shift => (
+                <ShiftAssignmentManager
+                  key={shift.id}
+                  shift={shift}
+                  date={formattedDate}
+                  scheduleId={scheduleData?.id}
+                  assignments={dayAssignments}
+                />
+              ))}
+            </div>
+            <div>
+              <h3 className="text-lg font-medium mb-4">Coverage Requirements</h3>
+              {coverageRequirements.map(requirement => (
+                <CoverageRequirementTracker
+                  key={requirement.id}
+                  requirement={requirement}
+                  assignments={dayAssignments}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
