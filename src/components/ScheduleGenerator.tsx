@@ -7,6 +7,7 @@ import { ScheduleControls } from "./schedule/ScheduleControls";
 import { ScheduleHeader } from "./schedule/ScheduleHeader";
 import { Card, CardContent, CardHeader } from "./ui/card";
 import { toast } from "sonner";
+import { ErrorBoundary } from "./schedule/ErrorBoundary";
 
 export function ScheduleGenerator() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
@@ -48,7 +49,7 @@ export function ScheduleGenerator() {
         toast.error("Error fetching schedule", {
           description: error.message
         });
-        return null;
+        throw error;
       }
 
       return schedule;
@@ -81,31 +82,33 @@ export function ScheduleGenerator() {
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <ScheduleHeader
-            selectedDate={selectedDate}
-            onPreviousWeek={handlePreviousWeek}
-            onNextWeek={handleNextWeek}
-          />
-        </CardHeader>
-        <CardContent>
-          <ScheduleControls
-            selectedDate={selectedDate}
-            userId={userId}
-            onScheduleGenerated={handleScheduleGenerated}
-            scheduleData={scheduleData}
-            isLoading={isLoading}
-          />
-        </CardContent>
-      </Card>
+      <ErrorBoundary>
+        <Card>
+          <CardHeader>
+            <ScheduleHeader
+              selectedDate={selectedDate}
+              onPreviousWeek={handlePreviousWeek}
+              onNextWeek={handleNextWeek}
+            />
+          </CardHeader>
+          <CardContent>
+            <ScheduleControls
+              selectedDate={selectedDate}
+              userId={userId}
+              onScheduleGenerated={handleScheduleGenerated}
+              scheduleData={scheduleData}
+              isLoading={isLoading}
+            />
+          </CardContent>
+        </Card>
 
-      <ScheduleCalendar
-        selectedDate={selectedDate}
-        onDateSelect={(date) => date && setSelectedDate(date)}
-        scheduleData={scheduleData}
-        isLoading={isLoading}
-      />
+        <ScheduleCalendar
+          selectedDate={selectedDate}
+          onDateSelect={(date) => date && setSelectedDate(date)}
+          scheduleData={scheduleData}
+          isLoading={isLoading}
+        />
+      </ErrorBoundary>
     </div>
   );
 }
