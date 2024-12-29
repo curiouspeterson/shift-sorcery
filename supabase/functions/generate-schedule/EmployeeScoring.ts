@@ -21,9 +21,9 @@ export class EmployeeScoring {
       return 0;
     }
 
-    // Prioritize employees who need more hours to meet minimum
+    // Strongly prioritize employees who need more hours to meet minimum
     if (currentHours < SCHEDULING_CONSTANTS.MIN_HOURS_PER_WEEK) {
-      score += 30;
+      score += 50; // Increased from 30 to 50
     }
 
     // Check consecutive days
@@ -33,12 +33,19 @@ export class EmployeeScoring {
     }
 
     // Penalize based on consecutive days worked
-    score -= consecutiveDays * 10;
+    score -= consecutiveDays * 15; // Increased penalty from 10 to 15
 
     // Bonus for employees under target hours
     const targetHours = (SCHEDULING_CONSTANTS.MIN_HOURS_PER_WEEK + SCHEDULING_CONSTANTS.MAX_HOURS_PER_WEEK) / 2;
     if (currentHours < targetHours) {
-      score += 20;
+      score += 30; // Increased from 20 to 30
+    }
+
+    // Bonus for shift duration matching
+    if (shiftHours === SCHEDULING_CONSTANTS.SHIFT_DURATIONS.FULL) {
+      score += 20; // Prefer full shifts
+    } else if (shiftHours === SCHEDULING_CONSTANTS.SHIFT_DURATIONS.STANDARD) {
+      score += 15; // Standard shifts are good too
     }
 
     return Math.max(0, score);
