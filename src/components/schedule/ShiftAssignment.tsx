@@ -54,9 +54,14 @@ export function ShiftAssignment({ assignment }: ShiftAssignmentProps) {
             {assignment.employee.first_name} {assignment.employee.last_name}
           </span>
         </div>
-        <span className="text-sm text-muted-foreground">
-          {formatTime(assignment.shift.start_time)} - {formatTime(assignment.shift.end_time)}
-        </span>
+        <div className="flex flex-col items-end text-sm">
+          <span className="font-medium text-muted-foreground">
+            {assignment.shift.name}
+          </span>
+          <span className="text-muted-foreground">
+            {formatTime(assignment.shift.start_time)} - {formatTime(assignment.shift.end_time)}
+          </span>
+        </div>
       </div>
     </Card>
   );
