@@ -1,7 +1,7 @@
 import { format } from "date-fns";
 import { ShiftLabel } from "./ShiftLabel";
 import { AssignmentsList } from "./AssignmentsList";
-import { getShiftType } from "./ShiftUtils";
+import { getShiftType } from "@/utils/shiftTypeUtils";
 import { sortAssignmentsByShiftType } from "@/utils/assignmentSorting";
 
 interface DailyScheduleProps {
