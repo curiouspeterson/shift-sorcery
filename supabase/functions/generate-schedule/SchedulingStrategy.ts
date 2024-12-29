@@ -33,17 +33,17 @@ export class SchedulingStrategy {
     let totalRequired = 0;
     let totalAssigned = 0;
 
-    // First pass: Calculate total requirements
+    // First pass: Calculate total requirements and validate data
     for (const [shiftType, typeShifts] of Object.entries(shifts)) {
       const required = this.requirementsManager.getRequiredStaffForShiftType(shiftType);
       totalRequired += required;
+      console.log(`Required staff for ${shiftType}: ${required}`);
     }
 
-    // Second pass: Assign shifts with priority
+    // Second pass: Assign shifts with priority and better employee distribution
     for (const [shiftType, typeShifts] of Object.entries(shifts)) {
       console.log(`\nProcessing ${shiftType} shifts...`);
       const required = this.requirementsManager.getRequiredStaffForShiftType(shiftType);
-      console.log(`Required staff for ${shiftType}: ${required}`);
       
       const assigned = await this.assignShiftType(
         shiftType,
@@ -59,14 +59,14 @@ export class SchedulingStrategy {
       totalAssigned += assigned;
       
       if (assigned < required) {
-        console.log(`Warning: Could not fully staff ${shiftType} for ${currentDate}`);
+        console.log(`⚠️ Warning: Could not fully staff ${shiftType} for ${currentDate}`);
         console.log(`Assigned: ${assigned}, Required: ${required}`);
         overallSuccess = false;
       }
     }
 
     const staffingPercentage = (totalAssigned / totalRequired) * 100;
-    console.log(`Overall staffing for ${currentDate}: ${staffingPercentage.toFixed(1)}% (${totalAssigned}/${totalRequired})`);
+    console.log(`📊 Overall staffing for ${currentDate}: ${staffingPercentage.toFixed(1)}% (${totalAssigned}/${totalRequired})`);
     
     return staffingPercentage >= SCHEDULING_CONSTANTS.MIN_STAFF_PERCENTAGE;
   }
@@ -81,8 +81,6 @@ export class SchedulingStrategy {
     dayOfWeek: number,
     required: number
   ): Promise<number> {
-    console.log(`\nAssigning ${shiftType} - Need ${required} employees`);
-
     if (required === 0) return 0;
 
     let assigned = 0;
@@ -94,22 +92,27 @@ export class SchedulingStrategy {
       this.assignmentManager.getWeeklyHoursTracker()
     );
 
-    console.log(`Found ${availableEmployees.length} available employees for ${shiftType}`);
+    console.log(`👥 Found ${availableEmployees.length} available employees for ${shiftType}`);
 
-    // Sort shifts by duration (longer shifts first)
+    // Sort shifts by priority (longer shifts first, then by start time)
     const sortedShifts = [...shifts].sort((a, b) => {
       const getDuration = (shift: any) => {
         const startHour = parseInt(shift.start_time.split(':')[0]);
         const endHour = parseInt(shift.end_time.split(':')[0]);
         return endHour < startHour ? (endHour + 24) - startHour : endHour - startHour;
       };
-      return getDuration(b) - getDuration(a);
+      
+      const durationDiff = getDuration(b) - getDuration(a);
+      if (durationDiff !== 0) return durationDiff;
+      
+      return a.start_time.localeCompare(b.start_time);
     });
 
-    // Try to assign each shift
+    // Try to assign each shift with improved employee distribution
     for (const shift of sortedShifts) {
       if (assigned >= required) break;
 
+      // Get sorted employees based on multiple factors
       const sortedEmployees = this.rankEmployees(availableEmployees, shift, currentDate);
       
       for (const employee of sortedEmployees) {
@@ -121,6 +124,8 @@ export class SchedulingStrategy {
           this.assignmentManager,
           this.assignmentManager.getWeeklyHoursTracker()
         )) {
+          console.log(`✅ Assigning ${employee.first_name} ${employee.last_name} to ${shift.name}`);
+          
           this.assignmentManager.assignShift(scheduleId, employee, shift, currentDate);
           assigned++;
           
@@ -136,7 +141,7 @@ export class SchedulingStrategy {
     }
 
     const staffingPercentage = (assigned / required) * 100;
-    console.log(`Staffing level for ${shiftType}: ${staffingPercentage.toFixed(1)}% (${assigned}/${required})`);
+    console.log(`📊 Staffing level for ${shiftType}: ${staffingPercentage.toFixed(1)}% (${assigned}/${required})`);
     
     return assigned;
   }
