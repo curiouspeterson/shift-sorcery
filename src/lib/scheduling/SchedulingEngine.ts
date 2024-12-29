@@ -1,11 +1,13 @@
+import { format, addDays } from 'date-fns';
 import { 
   SchedulingContext, 
   SchedulingResult, 
-  ScheduleAssignment 
+  ScheduleAssignment,
+  Employee,
+  CoverageStatus
 } from './types';
 import { CoverageCalculator } from './CoverageCalculator';
 import { ShiftDistributor } from './ShiftDistributor';
-import { format, addDays } from 'date-fns';
 
 export class SchedulingEngine {
   private coverageCalculator: CoverageCalculator;
