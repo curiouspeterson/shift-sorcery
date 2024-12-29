@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { ScheduleStatus } from "./controls/ScheduleStatus";
 import { ScheduleActions } from "./controls/ScheduleActions";
 import { DraftNotice } from "./controls/DraftNotice";
+import { useState } from "react";
 
 interface ScheduleControlsProps {
   selectedDate: Date;
@@ -22,6 +23,7 @@ export function ScheduleControls({
   scheduleData,
 }: ScheduleControlsProps) {
   const queryClient = useQueryClient();
+  const [isGenerating, setIsGenerating] = useState(false);
 
   const handleGenerateSchedule = async () => {
     console.log('🎯 Generate schedule clicked', {
@@ -30,6 +32,7 @@ export function ScheduleControls({
     });
 
     try {
+      setIsGenerating(true);
       console.log('🔄 Starting schedule generation');
       await generateScheduleForWeek(selectedDate, userId);
       
@@ -47,6 +50,8 @@ export function ScheduleControls({
     } catch (error: any) {
       console.error('❌ Schedule generation failed:', error);
       toast.error("Failed to generate schedule: " + error.message);
+    } finally {
+      setIsGenerating(false);
     }
   };
 
@@ -112,6 +117,7 @@ export function ScheduleControls({
           status={scheduleData?.status}
           onGenerate={handleGenerateSchedule}
           onPublish={handlePublishSchedule}
+          isGenerating={isGenerating}
         />
       </div>
 
