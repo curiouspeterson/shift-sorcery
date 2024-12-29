@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -31,16 +31,29 @@ export function AssignEmployeeDialog({
 }: AssignEmployeeDialogProps) {
   const [availableEmployees, setAvailableEmployees] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchAvailableEmployees();
+    } else {
+      // Reset state when dialog closes
+      setAvailableEmployees([]);
+      setLoading(false);
+      setError(null);
+    }
+  }, [isOpen, shiftId, date]);
 
   const fetchAvailableEmployees = async () => {
     setLoading(true);
+    setError(null);
+    
     try {
-      // Get the day of week (0-6) for the given date
       const dayOfWeek = new Date(date).getDay();
 
       // Get existing assignments for this date
-      const { data: existingAssignments } = await supabase
+      const { data: existingAssignments, error: assignmentsError } = await supabase
         .from('schedule_assignments')
         .select(`
           employee_id,
@@ -48,8 +61,10 @@ export function AssignEmployeeDialog({
         `)
         .eq('date', date);
 
+      if (assignmentsError) throw assignmentsError;
+
       // Get all employees with their availability for this day and shift
-      const { data: employees } = await supabase
+      const { data: employees, error: employeesError } = await supabase
         .from('profiles')
         .select(`
           *,
@@ -59,8 +74,10 @@ export function AssignEmployeeDialog({
         .eq('employee_availability.day_of_week', dayOfWeek)
         .eq('employee_availability.shift_id', shiftId);
 
+      if (employeesError) throw employeesError;
+
       if (!employees) {
-        toast.error("No employees found");
+        setAvailableEmployees([]);
         return;
       }
 
@@ -75,7 +92,7 @@ export function AssignEmployeeDialog({
       const weekEnd = new Date(weekStart);
       weekEnd.setDate(weekEnd.getDate() + 6);
 
-      const { data: weeklyAssignments } = await supabase
+      const { data: weeklyAssignments, error: weeklyError } = await supabase
         .from('schedule_assignments')
         .select(`
           employee_id,
@@ -83,6 +100,8 @@ export function AssignEmployeeDialog({
         `)
         .gte('date', weekStart.toISOString().split('T')[0])
         .lte('date', weekEnd.toISOString().split('T')[0]);
+
+      if (weeklyError) throw weeklyError;
 
       // Calculate weekly hours for each employee
       const employeeHours: Record<string, number> = {};
@@ -93,31 +112,29 @@ export function AssignEmployeeDialog({
       });
 
       // Get the current shift details
-      const { data: currentShift } = await supabase
+      const { data: currentShift, error: shiftError } = await supabase
         .from('shifts')
         .select('*')
         .eq('id', shiftId)
         .single();
 
-      if (!currentShift) {
-        toast.error("Shift not found");
-        return;
-      }
+      if (shiftError) throw shiftError;
 
       // Filter available employees
       const available = employees.filter(employee => {
         // Skip if already scheduled today
         if (scheduledEmployeeIds.has(employee.id)) return false;
 
-        // Skip if would exceed 40 hours
+        // Skip if would exceed weekly hours limit
         const currentHours = employeeHours[employee.id] || 0;
         const wouldExceedLimit = currentHours + calculateShiftHours(currentShift) > employee.weekly_hours_limit;
         return !wouldExceedLimit;
       });
 
       setAvailableEmployees(available);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching available employees:', error);
+      setError(error.message);
       toast.error("Failed to load available employees");
     } finally {
       setLoading(false);
@@ -152,11 +169,6 @@ export function AssignEmployeeDialog({
     }
   };
 
-  // Fetch available employees when dialog opens
-  if (isOpen && !loading && availableEmployees.length === 0) {
-    fetchAvailableEmployees();
-  }
-
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent>
@@ -166,8 +178,15 @@ export function AssignEmployeeDialog({
         <ScrollArea className="max-h-[300px]">
           <div className="space-y-2">
             {loading ? (
-              <p className="text-sm text-muted-foreground p-2">
-                Loading available employees...
+              <div className="flex items-center justify-center p-4">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900"></div>
+                <span className="ml-2 text-sm text-muted-foreground">
+                  Loading available employees...
+                </span>
+              </div>
+            ) : error ? (
+              <p className="text-sm text-red-500 p-2">
+                Error: {error}
               </p>
             ) : availableEmployees.length === 0 ? (
               <p className="text-sm text-muted-foreground p-2">
