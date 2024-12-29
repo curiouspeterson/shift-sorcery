@@ -30,7 +30,6 @@ export function ShiftManagement() {
 
   const createShiftMutation = useMutation({
     mutationFn: async (shiftData: typeof newShift) => {
-      // Calculate shift type based on start time
       const hour = parseInt(shiftData.startTime.split(':')[0]);
       let shiftType: "Day Shift Early" | "Day Shift" | "Swing Shift" | "Graveyard";
       
@@ -63,31 +62,31 @@ export function ShiftManagement() {
   const deleteShiftMutation = useMutation({
     mutationFn: async (shiftId: string) => {
       try {
-        // Delete schedule assignments first
-        const { error: scheduleError } = await supabase
-          .from("schedule_assignments")
+        // First delete employee availability records
+        const { error: availabilityError } = await supabase
+          .from('employee_availability')
           .delete()
-          .eq("shift_id", shiftId);
+          .eq('shift_id', shiftId);
+        
+        if (availabilityError) {
+          throw new Error(`Failed to delete availability records: ${availabilityError.message}`);
+        }
+
+        // Then delete schedule assignments
+        const { error: scheduleError } = await supabase
+          .from('schedule_assignments')
+          .delete()
+          .eq('shift_id', shiftId);
         
         if (scheduleError) {
           throw new Error(`Failed to delete schedule assignments: ${scheduleError.message}`);
         }
 
-        // Then delete employee availability
-        const { error: availabilityError } = await supabase
-          .from("employee_availability")
-          .delete()
-          .eq("shift_id", shiftId);
-        
-        if (availabilityError) {
-          throw new Error(`Failed to delete employee availability: ${availabilityError.message}`);
-        }
-
         // Finally delete the shift
         const { error: shiftError } = await supabase
-          .from("shifts")
+          .from('shifts')
           .delete()
-          .eq("id", shiftId);
+          .eq('id', shiftId);
         
         if (shiftError) {
           throw new Error(`Failed to delete shift: ${shiftError.message}`);

@@ -1,6 +1,6 @@
-import { Employee, Shift, ScheduleAssignment, EmployeeAvailability } from './types';
-import { getShiftType } from '@/utils/shiftUtils';
-import { WeeklyHoursTracker } from './WeeklyHoursTracker';
+import { Employee, Shift, ScheduleAssignment, EmployeeAvailability } from './types.ts';
+import { getShiftType } from './ShiftUtils.ts';
+import { WeeklyHoursTracker } from './WeeklyHoursTracker.ts';
 
 export class ShiftDistributor {
   private weeklyHoursTracker: WeeklyHoursTracker;

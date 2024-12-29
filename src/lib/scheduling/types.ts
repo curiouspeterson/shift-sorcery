@@ -1,4 +1,4 @@
-import { ShiftType } from '@/types';
+export type ShiftType = 'Day Shift Early' | 'Day Shift' | 'Swing Shift' | 'Graveyard';
 
 export interface Employee {
   id: string;
@@ -24,6 +24,7 @@ export interface EmployeeAvailability {
   day_of_week: number;
   start_time: string;
   end_time: string;
+  shift_id: string | null;
 }
 
 export interface CoverageRequirement {
