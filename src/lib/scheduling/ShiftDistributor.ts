@@ -1,69 +1,121 @@
 import { Employee, Shift, ScheduleAssignment, EmployeeAvailability } from './types';
 import { getShiftType } from '@/utils/shiftUtils';
+import { WeeklyHoursTracker } from './WeeklyHoursTracker';
 
 export class ShiftDistributor {
-  distributeShifts(
+  private weeklyHoursTracker: WeeklyHoursTracker;
+
+  constructor() {
+    this.weeklyHoursTracker = new WeeklyHoursTracker();
+  }
+
+  public async distributeLongShifts(
     date: string,
     scheduleId: string,
     employees: Employee[],
     shifts: Shift[],
     availability: EmployeeAvailability[]
-  ): ScheduleAssignment[] {
+  ): Promise<ScheduleAssignment[]> {
     const assignments: ScheduleAssignment[] = [];
-    const dayOfWeek = new Date(date).getDay();
+    const longShifts = shifts.filter(s => s.duration_hours === 12);
+    
+    console.log(`📋 Distributing ${longShifts.length} 12-hour shifts`);
 
-    // Sort shifts by priority - overnight shifts first, then by start time
-    const sortedShifts = [...shifts].sort((a, b) => {
-      const aStart = this.parseTimeToMinutes(a.start_time);
-      const bStart = this.parseTimeToMinutes(b.start_time);
-      
-      // Prioritize overnight shifts (starts after 8 PM)
-      const aIsOvernight = aStart >= 20 * 60; // 8 PM
-      const bIsOvernight = bStart >= 20 * 60;
-      
-      if (aIsOvernight !== bIsOvernight) {
-        return aIsOvernight ? -1 : 1;
-      }
-      
-      // Then sort by start time
-      return aStart - bStart;
-    });
-
-    console.log(`📊 Processing shifts for ${date} in order:`, 
-      sortedShifts.map(s => `${s.name} (${s.start_time}-${s.end_time})`));
-
-    for (const shift of sortedShifts) {
+    for (const shift of longShifts) {
       const availableEmployees = this.getAvailableEmployees(
         employees,
         shift,
         availability,
-        dayOfWeek,
-        assignments,
-        shifts
+        date,
+        assignments
       );
 
-      console.log(`👥 Found ${availableEmployees.length} available employees for ${shift.name}`);
-
       if (availableEmployees.length > 0) {
-        // Sort employees by their weekly hours (ascending) to ensure fair distribution
-        const sortedEmployees = [...availableEmployees].sort((a, b) => {
-          const aHours = this.getEmployeeWeeklyHours(a.id, assignments, shifts) || 0;
-          const bHours = this.getEmployeeWeeklyHours(b.id, assignments, shifts) || 0;
-          return aHours - bHours;
-        });
-
-        // Assign the employee with the least hours
-        const employee = sortedEmployees[0];
+        const employee = this.selectBestEmployee(availableEmployees, shift);
         assignments.push({
           schedule_id: scheduleId,
           employee_id: employee.id,
           shift_id: shift.id,
           date: date
         });
+        
+        this.weeklyHoursTracker.addHours(employee.id, shift.duration_hours);
+      }
+    }
 
-        console.log(`✅ Assigned ${employee.first_name} ${employee.last_name} to ${shift.name}`);
-      } else {
-        console.log(`⚠️ No available employees for ${shift.name}`);
+    return assignments;
+  }
+
+  public async distributeRegularShifts(
+    date: string,
+    scheduleId: string,
+    employees: Employee[],
+    shifts: Shift[],
+    availability: EmployeeAvailability[],
+    existingAssignments: ScheduleAssignment[]
+  ): Promise<ScheduleAssignment[]> {
+    const assignments: ScheduleAssignment[] = [];
+    const regularShifts = shifts.filter(s => s.duration_hours === 10);
+    
+    console.log(`📋 Distributing ${regularShifts.length} 10-hour shifts`);
+
+    for (const shift of regularShifts) {
+      const availableEmployees = this.getAvailableEmployees(
+        employees,
+        shift,
+        availability,
+        date,
+        [...existingAssignments, ...assignments]
+      );
+
+      if (availableEmployees.length > 0) {
+        const employee = this.selectBestEmployee(availableEmployees, shift);
+        assignments.push({
+          schedule_id: scheduleId,
+          employee_id: employee.id,
+          shift_id: shift.id,
+          date: date
+        });
+        
+        this.weeklyHoursTracker.addHours(employee.id, shift.duration_hours);
+      }
+    }
+
+    return assignments;
+  }
+
+  public async distributeShortShifts(
+    date: string,
+    scheduleId: string,
+    employees: Employee[],
+    shifts: Shift[],
+    availability: EmployeeAvailability[],
+    existingAssignments: ScheduleAssignment[]
+  ): Promise<ScheduleAssignment[]> {
+    const assignments: ScheduleAssignment[] = [];
+    const shortShifts = shifts.filter(s => s.duration_hours === 4);
+    
+    console.log(`📋 Distributing ${shortShifts.length} 4-hour shifts`);
+
+    for (const shift of shortShifts) {
+      const availableEmployees = this.getAvailableEmployees(
+        employees,
+        shift,
+        availability,
+        date,
+        [...existingAssignments, ...assignments]
+      );
+
+      if (availableEmployees.length > 0) {
+        const employee = this.selectBestEmployee(availableEmployees, shift);
+        assignments.push({
+          schedule_id: scheduleId,
+          employee_id: employee.id,
+          shift_id: shift.id,
+          date: date
+        });
+        
+        this.weeklyHoursTracker.addHours(employee.id, shift.duration_hours);
       }
     }
 
@@ -74,101 +126,42 @@ export class ShiftDistributor {
     employees: Employee[],
     shift: Shift,
     availability: EmployeeAvailability[],
-    dayOfWeek: number,
-    existingAssignments: ScheduleAssignment[],
-    shifts: Shift[]
+    date: string,
+    existingAssignments: ScheduleAssignment[]
   ): Employee[] {
     return employees.filter(employee => {
       // Check if employee is already assigned for this day
       const alreadyAssigned = existingAssignments.some(
         assignment => assignment.employee_id === employee.id
       );
+      
       if (alreadyAssigned) {
-        console.log(`👤 ${employee.first_name} already assigned for this day`);
         return false;
       }
 
       // Check weekly hours limit
-      const currentHours = this.getEmployeeWeeklyHours(employee.id, existingAssignments, shifts);
-      const shiftHours = this.getShiftHours(shift);
-      if (currentHours + shiftHours > employee.weekly_hours_limit) {
-        console.log(`👤 ${employee.first_name} would exceed weekly hours limit`);
+      const currentHours = this.weeklyHoursTracker.getCurrentHours(employee.id);
+      if (currentHours + shift.duration_hours > employee.weekly_hours_limit) {
         return false;
       }
 
-      // Check if employee has availability for this shift and day
+      // Check if employee has availability for this shift
       const hasAvailability = availability.some(
         avail =>
           avail.employee_id === employee.id &&
-          avail.day_of_week === dayOfWeek &&
-          this.isTimeWithinAvailability(
-            shift.start_time,
-            shift.end_time,
-            avail.start_time,
-            avail.end_time
-          )
+          avail.shift_id === shift.id
       );
-
-      if (!hasAvailability) {
-        console.log(`👤 ${employee.first_name} not available for this shift`);
-      }
 
       return hasAvailability;
     });
   }
 
-  private isTimeWithinAvailability(
-    shiftStart: string,
-    shiftEnd: string,
-    availStart: string,
-    availEnd: string
-  ): boolean {
-    const shiftStartMins = this.parseTimeToMinutes(shiftStart);
-    const shiftEndMins = this.parseTimeToMinutes(shiftEnd);
-    const availStartMins = this.parseTimeToMinutes(availStart);
-    const availEndMins = this.parseTimeToMinutes(availEnd);
-
-    // Handle overnight shifts
-    if (shiftEndMins <= shiftStartMins) {
-      // Shift crosses midnight
-      return (availEndMins <= availStartMins && // Availability also crosses midnight
-              shiftStartMins >= availStartMins) || // Start time is within availability
-             (availEndMins > availStartMins && // Regular availability
-              shiftStartMins >= availStartMins &&
-              shiftEndMins <= availEndMins);
-    }
-
-    // Regular shift (doesn't cross midnight)
-    return shiftStartMins >= availStartMins && shiftEndMins <= availEndMins;
-  }
-
-  private parseTimeToMinutes(time: string): number {
-    const [hours, minutes] = time.split(':').map(Number);
-    return hours * 60 + minutes;
-  }
-
-  private getEmployeeWeeklyHours(
-    employeeId: string, 
-    assignments: ScheduleAssignment[],
-    shifts: Shift[]
-  ): number {
-    return assignments
-      .filter(a => a.employee_id === employeeId)
-      .reduce((total, assignment) => {
-        const shift = shifts.find(s => s.id === assignment.shift_id);
-        if (!shift) return total;
-        return total + this.getShiftHours(shift);
-      }, 0);
-  }
-
-  private getShiftHours(shift: Shift): number {
-    const startMins = this.parseTimeToMinutes(shift.start_time);
-    let endMins = this.parseTimeToMinutes(shift.end_time);
-    
-    if (endMins <= startMins) {
-      endMins += 24 * 60; // Add 24 hours for overnight shifts
-    }
-    
-    return (endMins - startMins) / 60;
+  private selectBestEmployee(employees: Employee[], shift: Shift): Employee {
+    // For now, select the employee with the least weekly hours
+    return employees.reduce((best, current) => {
+      const bestHours = this.weeklyHoursTracker.getCurrentHours(best.id);
+      const currentHours = this.weeklyHoursTracker.getCurrentHours(current.id);
+      return currentHours < bestHours ? current : best;
+    }, employees[0]);
   }
 }

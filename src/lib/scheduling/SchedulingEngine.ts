@@ -30,6 +30,13 @@ export class SchedulingEngine {
     let success = true;
 
     try {
+      // First, group employees by preferred shift pattern (12hr vs 10hr)
+      const employeeGroups = this.groupEmployeesByShiftPattern(context.employees);
+      console.log('👥 Employee groups:', {
+        twelveHourPattern: employeeGroups.twelveHour.length,
+        tenHourPattern: employeeGroups.tenHour.length
+      });
+
       // Process each day of the week
       for (let i = 0; i < 7; i++) {
         const currentDate = format(addDays(weekStartDate, i), 'yyyy-MM-dd');
@@ -42,20 +49,44 @@ export class SchedulingEngine {
           currentDate
         );
 
-        // Distribute shifts to meet coverage
-        const dailyAssignments = this.shiftDistributor.distributeShifts(
+        // First, assign 12-hour shifts to ensure core coverage
+        const longShiftAssignments = await this.shiftDistributor.distributeLongShifts(
           currentDate,
           scheduleId,
-          availableEmployees,
+          employeeGroups.twelveHour,
           context.shifts,
           context.availability
         );
 
-        assignments.push(...dailyAssignments);
+        assignments.push(...longShiftAssignments);
+
+        // Then, fill gaps with 10-hour shifts
+        const regularShiftAssignments = await this.shiftDistributor.distributeRegularShifts(
+          currentDate,
+          scheduleId,
+          employeeGroups.tenHour,
+          context.shifts,
+          context.availability,
+          longShiftAssignments
+        );
+
+        assignments.push(...regularShiftAssignments);
+
+        // Finally, add 4-hour shifts where needed to meet minimum staffing
+        const shortShiftAssignments = await this.shiftDistributor.distributeShortShifts(
+          currentDate,
+          scheduleId,
+          availableEmployees,
+          context.shifts,
+          context.availability,
+          [...longShiftAssignments, ...regularShiftAssignments]
+        );
+
+        assignments.push(...shortShiftAssignments);
 
         // Check coverage requirements
         const coverage = this.coverageCalculator.calculateCoverage(
-          dailyAssignments,
+          [...longShiftAssignments, ...regularShiftAssignments, ...shortShiftAssignments],
           context.shifts,
           context.coverageRequirements
         );
@@ -83,6 +114,21 @@ export class SchedulingEngine {
       console.error('❌ Error generating schedule:', error);
       throw error;
     }
+  }
+
+  private groupEmployeesByShiftPattern(employees: Employee[]): {
+    twelveHour: Employee[];
+    tenHour: Employee[];
+  } {
+    // For now, split employees evenly between patterns
+    // This could be enhanced to use employee preferences
+    const sorted = [...employees].sort(() => Math.random() - 0.5);
+    const midpoint = Math.floor(sorted.length / 2);
+    
+    return {
+      twelveHour: sorted.slice(0, midpoint),
+      tenHour: sorted.slice(midpoint)
+    };
   }
 
   private getAvailableEmployees(
