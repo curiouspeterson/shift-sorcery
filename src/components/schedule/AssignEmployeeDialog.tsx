@@ -41,6 +41,28 @@ export function AssignEmployeeDialog({
     try {
       console.log('Assigning employee:', employeeId, 'to shift:', shiftId);
       
+      // First verify the shift exists
+      const { data: shift, error: shiftError } = await supabase
+        .from('shifts')
+        .select('*')
+        .eq('id', shiftId)
+        .maybeSingle();
+
+      if (shiftError) {
+        console.error('Error fetching shift:', shiftError);
+        throw new Error('Failed to verify shift');
+      }
+
+      if (!shift) {
+        console.error('Shift not found:', shiftId);
+        throw new Error('Shift not found');
+      }
+
+      if (!scheduleId) {
+        console.error('No schedule ID provided');
+        throw new Error('Schedule ID is required');
+      }
+
       const { error: assignmentError } = await supabase
         .from('schedule_assignments')
         .insert({
@@ -50,7 +72,10 @@ export function AssignEmployeeDialog({
           date: date
         });
 
-      if (assignmentError) throw assignmentError;
+      if (assignmentError) {
+        console.error('Error creating assignment:', assignmentError);
+        throw assignmentError;
+      }
 
       await queryClient.invalidateQueries({ 
         queryKey: ['schedule']
@@ -60,7 +85,7 @@ export function AssignEmployeeDialog({
       onOpenChange(false);
     } catch (error: any) {
       console.error('Error assigning employee:', error);
-      toast.error("Failed to assign employee");
+      toast.error(error.message || "Failed to assign employee");
     }
   };
 
