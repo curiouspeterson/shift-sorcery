@@ -9,12 +9,57 @@ export function getShiftType(startTime: string): string {
   return "Graveyard"; // 22-4
 }
 
+function getShiftTimeRange(startTime: string, endTime: string): { start: number; end: number } {
+  let startHour = parseInt(startTime.split(':')[0]);
+  let endHour = parseInt(endTime.split(':')[0]);
+  
+  // Adjust end hour for overnight shifts
+  if (endHour <= startHour) {
+    endHour += 24;
+  }
+  
+  return { start: startHour, end: endHour };
+}
+
+function doesShiftOverlapPeriod(startTime: string, endTime: string, periodStart: number, periodEnd: number): boolean {
+  const range = getShiftTimeRange(startTime, endTime);
+  
+  // Handle overnight period (e.g., Graveyard 22-4)
+  if (periodEnd < periodStart) {
+    // Check if shift overlaps either part of the overnight period
+    return (range.start >= periodStart && range.start < 24) || 
+           (range.start >= 0 && range.start < periodEnd) ||
+           (range.end > periodStart && range.end <= 24) ||
+           (range.end > 0 && range.end <= periodEnd);
+  }
+  
+  // For regular periods, check if shift overlaps at all
+  return (range.start < periodEnd && range.end > periodStart);
+}
+
 export function countStaffByShiftType(assignments: any[], shiftType: string): number {
   const uniqueEmployees = new Set();
   
   assignments.forEach(assignment => {
-    const assignmentType = getShiftType(assignment.shift.start_time);
-    if (assignmentType === shiftType) {
+    const { start_time, end_time } = assignment.shift;
+    let overlaps = false;
+    
+    switch(shiftType) {
+      case "Day Shift Early":
+        overlaps = doesShiftOverlapPeriod(start_time, end_time, 4, 8);
+        break;
+      case "Day Shift":
+        overlaps = doesShiftOverlapPeriod(start_time, end_time, 8, 16);
+        break;
+      case "Swing Shift":
+        overlaps = doesShiftOverlapPeriod(start_time, end_time, 16, 22);
+        break;
+      case "Graveyard":
+        overlaps = doesShiftOverlapPeriod(start_time, end_time, 22, 4);
+        break;
+    }
+    
+    if (overlaps) {
       uniqueEmployees.add(assignment.employee_id);
     }
   });
@@ -23,6 +68,8 @@ export function countStaffByShiftType(assignments: any[], shiftType: string): nu
 }
 
 export function getRequiredStaffForShiftType(coverageRequirements: any[], shiftType: string): number {
+  if (!coverageRequirements) return 0;
+
   const requirement = coverageRequirements.find(req => {
     const reqStartHour = parseInt(req.start_time.split(':')[0]);
     
