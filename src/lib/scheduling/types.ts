@@ -72,3 +72,16 @@ export interface SchedulingContext {
   coverageRequirements: CoverageRequirement[];
   timeOffRequests: TimeOffRequest[];
 }
+
+export interface CoverageTracking {
+  requirement: CoverageRequirement;
+  currentCount: number;
+  minimumMet: boolean;
+}
+
+export interface ShiftRequirements {
+  graveyardShift: number;
+  swingShift: number;
+  dayShift: number;
+  earlyShift: number;
+}

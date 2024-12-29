@@ -3,7 +3,12 @@ import { Button } from "@/components/ui/button";
 import { Plus, AlertTriangle } from "lucide-react";
 import { useState } from "react";
 import { AssignEmployeeDialog } from "./AssignEmployeeDialog";
-import { Tooltip } from "@/components/ui/tooltip";
+import { 
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface ShiftLabelProps {
   shiftType: string;
@@ -52,9 +57,16 @@ export function ShiftLabel({
             ({currentStaff}/{minStaff})
           </span>
           {isUnderStaffed && (
-            <Tooltip content="Understaffed shift">
-              <AlertTriangle className="h-4 w-4 text-red-500" />
-            </Tooltip>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger>
+                  <AlertTriangle className="h-4 w-4 text-red-500" />
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Understaffed shift</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           )}
         </div>
       </div>
