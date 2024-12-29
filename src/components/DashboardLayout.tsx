@@ -20,9 +20,11 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
 
     const checkAuth = async () => {
       try {
+        console.log('Checking auth session...');
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
         
         if (sessionError) {
+          console.error('Session error:', sessionError);
           throw sessionError;
         }
 
@@ -36,6 +38,7 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
         // Verify the session is still valid
         const { error: userError } = await supabase.auth.getUser();
         if (userError) {
+          console.error('User error:', userError);
           throw userError;
         }
 
@@ -93,6 +96,13 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
       } catch (error: any) {
         console.error("Auth error:", error);
         if (mounted) {
+          if (retryCount < MAX_RETRIES && error.message === "Failed to fetch") {
+            console.log(`Retrying auth check (attempt ${retryCount + 1}/${MAX_RETRIES})...`);
+            setRetryCount(prev => prev + 1);
+            retryTimeout = setTimeout(checkAuth, 1000 * (retryCount + 1));
+            return;
+          }
+          
           setAuthError(error.message);
           await clearAuthData();
           
