@@ -1,5 +1,5 @@
 import { Employee, Shift, ScheduleAssignment, EmployeeAvailability } from '../types';
-import { getShiftType } from '../utils/shiftUtils';
+import { getShiftType, isTimeWithinAvailability } from '../utils/shiftUtils';
 import { SCHEDULING_CONSTANTS } from '../constants';
 
 export class ShiftDistributor {
@@ -8,7 +8,8 @@ export class ShiftDistributor {
     scheduleId: string,
     employees: Employee[],
     shifts: Shift[],
-    availability: EmployeeAvailability[]
+    availability: EmployeeAvailability[],
+    existingAssignments: ScheduleAssignment[] = []
   ): ScheduleAssignment[] {
     console.log(`\n📋 Distributing shifts for date: ${date}`);
     const assignments: ScheduleAssignment[] = [];
@@ -44,8 +45,8 @@ export class ShiftDistributor {
       if (availableEmployees.length > 0) {
         // Sort employees by weekly hours (ascending) to ensure fair distribution
         availableEmployees.sort((a, b) => {
-          const aHours = this.calculateWeeklyHours(a.id, assignments, shift);
-          const bHours = this.calculateWeeklyHours(b.id, assignments, shift);
+          const aHours = this.calculateWeeklyHours(a.id, [...existingAssignments, ...assignments], shifts);
+          const bHours = this.calculateWeeklyHours(b.id, [...existingAssignments, ...assignments], shifts);
           return aHours - bHours;
         });
 
@@ -98,7 +99,7 @@ export class ShiftDistributor {
         }
 
         // Otherwise check time range overlap
-        return this.isTimeWithinAvailability(
+        return isTimeWithinAvailability(
           shift.start_time,
           shift.end_time,
           avail.start_time,
@@ -112,7 +113,7 @@ export class ShiftDistributor {
       }
 
       // Check weekly hours limit
-      const weeklyHours = this.calculateWeeklyHours(employee.id, existingAssignments, shift);
+      const weeklyHours = this.calculateWeeklyHours(employee.id, existingAssignments, [shift]);
       if (weeklyHours > employee.weekly_hours_limit) {
         console.log(`Employee ${employee.id} would exceed weekly hours limit`);
         return false;
@@ -122,52 +123,21 @@ export class ShiftDistributor {
     });
   }
 
-  private isTimeWithinAvailability(
-    shiftStart: string,
-    shiftEnd: string,
-    availStart: string,
-    availEnd: string
-  ): boolean {
-    // Convert times to minutes for easier comparison
-    const convertToMinutes = (time: string) => {
-      const [hours, minutes] = time.split(':').map(Number);
-      return hours * 60 + minutes;
-    };
-
-    const shiftStartMins = convertToMinutes(shiftStart);
-    const shiftEndMins = convertToMinutes(shiftEnd);
-    const availStartMins = convertToMinutes(availStart);
-    const availEndMins = convertToMinutes(availEnd);
-
-    // Handle overnight shifts
-    if (shiftEndMins <= shiftStartMins) {
-      // Shift crosses midnight
-      return (availEndMins <= availStartMins) || // Availability also crosses midnight
-             (shiftStartMins >= availStartMins && availEndMins >= shiftStartMins) || // Start time fits
-             (shiftEndMins <= availEndMins && availStartMins <= shiftEndMins); // End time fits
-    }
-
-    // Regular shift (doesn't cross midnight)
-    if (availEndMins <= availStartMins) {
-      // Availability crosses midnight
-      return shiftStartMins >= availStartMins || shiftEndMins <= availEndMins;
-    }
-
-    return shiftStartMins >= availStartMins && shiftEndMins <= availEndMins;
-  }
-
   private calculateWeeklyHours(
     employeeId: string,
-    existingAssignments: ScheduleAssignment[],
-    currentShift: Shift
+    assignments: ScheduleAssignment[],
+    shifts: Shift[]
   ): number {
-    const employeeAssignments = existingAssignments.filter(
+    const employeeAssignments = assignments.filter(
       a => a.employee_id === employeeId
     );
 
-    let totalHours = employeeAssignments.length * 8; // Assuming 8 hours per shift
-    totalHours += currentShift.duration_hours || 8;
-
-    return totalHours;
+    return employeeAssignments.reduce((total, assignment) => {
+      const shift = shifts.find(s => s.id === assignment.shift_id);
+      if (!shift) return total;
+      
+      const duration = shift.duration_hours || 8; // Default to 8 hours if not specified
+      return total + Number(duration);
+    }, 0);
   }
 }
