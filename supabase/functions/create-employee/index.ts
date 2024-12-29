@@ -12,7 +12,6 @@ Deno.serve(async (req) => {
     return new Response('ok', { 
       headers: {
         ...corsHeaders,
-        'Access-Control-Max-Age': '86400',
         'Content-Type': 'application/json'
       }
     })
@@ -96,9 +95,8 @@ Deno.serve(async (req) => {
       }),
       { 
         headers: { 
-          ...corsHeaders, 
-          'Content-Type': 'application/json',
-          'Access-Control-Max-Age': '86400'
+          ...corsHeaders,
+          'Content-Type': 'application/json'
         },
         status: 200,
       },
@@ -112,9 +110,8 @@ Deno.serve(async (req) => {
       }),
       { 
         headers: { 
-          ...corsHeaders, 
-          'Content-Type': 'application/json',
-          'Access-Control-Max-Age': '86400'
+          ...corsHeaders,
+          'Content-Type': 'application/json'
         },
         status: 400,
       },
