@@ -1,6 +1,6 @@
-import { Shift, ShiftType } from '@/types';
+import { Shift, ShiftType, CoverageRequirement } from '@/types';
 import { parseTime, doesTimeRangeOverlap } from '@/utils/timeUtils';
-import { getShiftType, getShiftTimeRange } from '@/utils/shiftTypeUtils';
+import { getShiftType as getShiftTypeUtil, getShiftTimeRange } from '@/utils/shiftTypeUtils';
 
 export function getShiftDuration(shift: Shift): number {
   const start = parseTime(shift.start_time);
@@ -22,21 +22,22 @@ export function isShiftCompatible(
   isShortShift: boolean
 ): boolean {
   if (!employeePattern || !isShortShift) return true;
-  const compatible = getShiftType(shift.start_time) === employeePattern;
+  const shiftType = getShiftTypeUtil(shift.start_time);
+  const compatible = shiftType === employeePattern;
   console.log(`🔄 Shift compatibility check: ${compatible ? '✅ Compatible' : '❌ Incompatible'}`);
   return compatible;
 }
 
-export function countStaffByShiftType(assignments: any[], shiftType: string): number {
+export function countStaffByShiftType(assignments: any[], shiftType: ShiftType): number {
   console.log(`\n📊 Counting staff for ${shiftType}`);
   const count = assignments.filter(assignment => 
-    getShiftType(assignment.shift.start_time) === shiftType
+    getShiftTypeUtil(assignment.shift.start_time) === shiftType
   ).length;
   console.log(`✨ Found ${count} staff members for ${shiftType}`);
   return count;
 }
 
-export function getRequiredStaffForShiftType(requirements: any[], shiftType: string): number {
+export function getRequiredStaffForShiftType(requirements: any[], shiftType: ShiftType): number {
   console.log(`\n🎯 Getting required staff for ${shiftType}`);
   const timeRange = getShiftTimeRange(shiftType);
   
@@ -63,4 +64,4 @@ export function getRequiredStaffForShiftType(requirements: any[], shiftType: str
 }
 
 // Re-export necessary functions
-export { getShiftType } from '@/utils/shiftTypeUtils';
+export { getShiftTypeUtil as getShiftType };
