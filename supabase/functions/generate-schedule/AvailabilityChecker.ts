@@ -8,21 +8,32 @@ export class AvailabilityChecker {
     dayOfWeek: number,
     assignedEmployees: Set<string>
   ): boolean {
+    console.log(`\n🔍 Checking availability for ${employee.first_name} ${employee.last_name}`);
+    
     if (assignedEmployees.has(employee.id)) {
-      console.log(`👤 ${employee.first_name}: Already assigned today`);
+      console.log(`❌ Already assigned today`);
       return false;
     }
 
-    const hasAvailability = availability.some(avail => {
-      if (avail.employee_id !== employee.id || avail.day_of_week !== dayOfWeek) {
-        return false;
-      }
+    const employeeAvailability = availability.filter(a => 
+      a.employee_id === employee.id && 
+      a.day_of_week === dayOfWeek
+    );
 
+    if (employeeAvailability.length === 0) {
+      console.log(`❌ No availability records for day ${dayOfWeek}`);
+      return false;
+    }
+
+    console.log(`Found ${employeeAvailability.length} availability records`);
+
+    const hasMatchingAvailability = employeeAvailability.some(avail => {
       if (avail.shift_id) {
         const matches = avail.shift_id === shift.id;
-        if (matches) {
-          console.log(`👍 ${employee.first_name}: Has direct availability for ${shift.name}`);
-        }
+        console.log(matches 
+          ? `✅ Direct shift match found` 
+          : `❌ No direct shift match`
+        );
         return matches;
       }
 
@@ -33,18 +44,15 @@ export class AvailabilityChecker {
         avail.end_time
       );
 
-      if (isAvailable) {
-        console.log(`👍 ${employee.first_name}: Has time range availability for ${shift.name}`);
-      }
+      console.log(isAvailable
+        ? `✅ Time range matches: ${avail.start_time}-${avail.end_time}`
+        : `❌ Time range doesn't match: ${avail.start_time}-${avail.end_time}`
+      );
 
       return isAvailable;
     });
 
-    if (!hasAvailability) {
-      console.log(`👎 ${employee.first_name}: No availability for ${shift.name}`);
-    }
-
-    return hasAvailability;
+    return hasMatchingAvailability;
   }
 
   private isTimeWithinAvailability(
