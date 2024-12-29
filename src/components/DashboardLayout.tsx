@@ -53,29 +53,32 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
         }
 
         if (!profile) {
-          // Try to create profile if it doesn't exist
+          console.log("No profile found, attempting to create one");
           const { data: userData } = await supabase.auth.getUser();
-          if (userData.user) {
-            const { error: insertError } = await supabase
-              .from('profiles')
-              .insert([{
-                id: userData.user.id,
-                first_name: userData.user.user_metadata.first_name || '',
-                last_name: userData.user.user_metadata.last_name || '',
-                role: userData.user.user_metadata.role || 'employee'
-              }]);
+          
+          if (!userData.user) {
+            throw new Error("Unable to retrieve user data");
+          }
 
-            if (insertError) {
-              console.error("Error creating profile:", insertError);
-              if (retryCount < MAX_RETRIES) {
-                setRetryCount(prev => prev + 1);
-                retryTimeout = setTimeout(checkAuth, 1000 * (retryCount + 1));
-                return;
-              }
-              throw new Error("Unable to create user profile. Please contact support.");
+          const { error: insertError } = await supabase
+            .from('profiles')
+            .insert([{
+              id: userData.user.id,
+              first_name: userData.user.user_metadata.first_name || '',
+              last_name: userData.user.user_metadata.last_name || '',
+              role: userData.user.user_metadata.role || 'employee'
+            }])
+            .select()
+            .single();
+
+          if (insertError) {
+            console.error("Error creating profile:", insertError);
+            if (retryCount < MAX_RETRIES) {
+              setRetryCount(prev => prev + 1);
+              retryTimeout = setTimeout(checkAuth, 1000 * (retryCount + 1));
+              return;
             }
-          } else {
-            throw new Error("Unable to retrieve user data. Please try logging in again.");
+            throw new Error("Unable to create user profile after multiple attempts");
           }
         }
 
