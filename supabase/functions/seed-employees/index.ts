@@ -25,10 +25,11 @@ const lastNames = [
 // Function to generate unique name combinations
 function generateUniqueNames(count: number) {
   const combinations: { firstName: string; lastName: string }[] = [];
-  let firstIndex = 0;
-  let lastIndex = 0;
+  // Randomize the starting indices
+  let firstIndex = Math.floor(Math.random() * firstNames.length);
+  let lastIndex = Math.floor(Math.random() * lastNames.length);
 
-  while (combinations.length < count && firstIndex < firstNames.length) {
+  while (combinations.length < count && combinations.length < firstNames.length * lastNames.length) {
     combinations.push({
       firstName: firstNames[firstIndex],
       lastName: lastNames[lastIndex],
@@ -38,6 +39,9 @@ function generateUniqueNames(count: number) {
     if (lastIndex >= lastNames.length) {
       lastIndex = 0;
       firstIndex++;
+      if (firstIndex >= firstNames.length) {
+        firstIndex = 0;
+      }
     }
   }
 
