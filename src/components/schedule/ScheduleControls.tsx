@@ -4,8 +4,8 @@ import { format } from "date-fns";
 import { generateScheduleForWeek, publishSchedule } from "@/utils/schedulingEngine";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { ScheduleStatus } from "./controls/ScheduleStatus";
-import { ScheduleActions } from "./controls/ScheduleActions";
+import { ScheduleStatusDisplay } from "./controls/ScheduleStatusDisplay";
+import { ScheduleActionButtons } from "./controls/ScheduleActionButtons";
 import { DraftNotice } from "./controls/DraftNotice";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -35,15 +35,10 @@ export function ScheduleControls({
 
     try {
       setIsGenerating(true);
-      console.log('🔄 Starting schedule generation');
       await generateScheduleForWeek(selectedDate, userId);
-      
-      console.log('🔄 Invalidating queries');
       await queryClient.invalidateQueries({ 
         queryKey: ["schedule", format(selectedDate, "yyyy-MM-dd")] 
       });
-      
-      console.log('🔄 Triggering refetch');
       onScheduleGenerated();
       
       toast.success("Schedule generated successfully", {
@@ -59,16 +54,12 @@ export function ScheduleControls({
 
   const handlePublishSchedule = async () => {
     if (!scheduleData?.id) {
-      console.warn('⚠️ Attempted to publish without schedule data');
       toast.error("No schedule to publish");
       return;
     }
 
-    console.log('📢 Publishing schedule:', scheduleData.id);
-
     try {
       await publishSchedule(scheduleData.id);
-      console.log('🔄 Invalidating queries after publish');
       queryClient.invalidateQueries({ queryKey: ["schedule"] });
       toast.success("Schedule published successfully", {
         description: "All employees will be notified of their shifts."
@@ -81,12 +72,9 @@ export function ScheduleControls({
 
   const handleDeleteSchedule = async () => {
     if (!scheduleData?.id) {
-      console.warn('⚠️ Attempted to delete without schedule data');
       toast.error("No schedule to delete");
       return;
     }
-
-    console.log('🗑️ Deleting schedule:', scheduleData.id);
 
     try {
       const { error } = await supabase
@@ -94,12 +82,8 @@ export function ScheduleControls({
         .delete()
         .eq('id', scheduleData.id);
 
-      if (error) {
-        console.error('❌ Delete error:', error);
-        throw error;
-      }
+      if (error) throw error;
 
-      console.log('🔄 Invalidating queries after delete');
       queryClient.invalidateQueries({ queryKey: ["schedule"] });
       toast.success("Schedule deleted successfully");
     } catch (error: any) {
@@ -122,11 +106,11 @@ export function ScheduleControls({
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <ScheduleStatus 
+        <ScheduleStatusDisplay 
           status={scheduleData?.status} 
           onDelete={handleDeleteSchedule} 
         />
-        <ScheduleActions 
+        <ScheduleActionButtons 
           status={scheduleData?.status}
           onGenerate={handleGenerateSchedule}
           onPublish={handlePublishSchedule}
