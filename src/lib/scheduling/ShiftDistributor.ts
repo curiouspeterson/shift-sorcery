@@ -1,5 +1,10 @@
-import { Employee, Shift, ScheduleAssignment, EmployeeAvailability } from './types';
-import { getShiftType } from '@/utils/shiftUtils';
+import { 
+  Employee, 
+  Shift, 
+  ScheduleAssignment, 
+  EmployeeAvailability 
+} from './types';
+import { isTimeOverlapping } from '@/utils/timeUtils';
 
 export class ShiftDistributor {
   distributeShifts(
@@ -78,17 +83,6 @@ export class ShiftDistributor {
     availStart: string,
     availEnd: string
   ): boolean {
-    // Convert times to minutes for easier comparison
-    const convertToMinutes = (time: string) => {
-      const [hours, minutes] = time.split(':').map(Number);
-      return hours * 60 + minutes;
-    };
-
-    const shiftStartMins = convertToMinutes(shiftStart);
-    const shiftEndMins = convertToMinutes(shiftEnd);
-    const availStartMins = convertToMinutes(availStart);
-    const availEndMins = convertToMinutes(availEnd);
-
-    return shiftStartMins >= availStartMins && shiftEndMins <= availEndMins;
+    return isTimeOverlapping(shiftStart, shiftEnd, availStart, availEnd);
   }
 }
