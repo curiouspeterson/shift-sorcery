@@ -148,3 +148,41 @@ export function isShiftCompatible(
   console.log(`🔄 Shift compatibility check: ${compatible ? '✅ Compatible' : '❌ Incompatible'}`);
   return compatible;
 }
+
+export function getRequiredStaffForShiftType(requirements: CoverageRequirement[], shiftType: string): number {
+  console.log(`\n🎯 Getting required staff for ${shiftType}`);
+  
+  let requiredStaff = 0;
+  
+  // Map shift types to their time ranges
+  const shiftTimeRanges = {
+    "Day Shift Early": { start: 4, end: 8 },
+    "Day Shift": { start: 8, end: 16 },
+    "Swing Shift": { start: 16, end: 22 },
+    "Graveyard": { start: 22, end: 4 }
+  };
+  
+  const timeRange = shiftTimeRanges[shiftType as keyof typeof shiftTimeRanges];
+  if (!timeRange) {
+    console.warn(`⚠️ Unknown shift type: ${shiftType}`);
+    return 0;
+  }
+  
+  // Find the maximum required staff during this shift's time range
+  requirements.forEach(req => {
+    const reqStart = parseTime(req.start_time);
+    const reqEnd = parseTime(req.end_time);
+    
+    // Check if this requirement overlaps with the shift type's time range
+    const periodStart = timeRange.start * 60;
+    const periodEnd = timeRange.end * 60;
+    
+    if (doesTimeRangeOverlap(reqStart, reqEnd, periodStart, periodEnd)) {
+      requiredStaff = Math.max(requiredStaff, req.min_employees);
+      console.log(`📋 Requirement ${req.start_time}-${req.end_time} needs ${req.min_employees} staff`);
+    }
+  });
+  
+  console.log(`✨ Final required staff for ${shiftType}: ${requiredStaff}`);
+  return requiredStaff;
+}
