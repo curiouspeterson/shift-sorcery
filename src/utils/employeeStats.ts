@@ -2,7 +2,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { format, startOfWeek } from "date-fns";
 
 export async function getEmployeeStats(weekDate: Date) {
-  console.log('📊 Fetching employee statistics...');
+  console.log('📊 Fetching employee statistics...', {
+    weekDate: format(weekDate, 'yyyy-MM-dd')
+  });
   
   try {
     // Get total number of employees
@@ -23,12 +25,15 @@ export async function getEmployeeStats(weekDate: Date) {
 
     const uniqueEmployeesWithShifts = new Set(assignments?.map(a => a.employee_id) || []);
     
-    return {
+    const stats = {
       totalEmployees: employees?.length || 0,
       employeesWithShifts: uniqueEmployeesWithShifts.size
     };
+
+    console.log('✅ Statistics fetched successfully:', stats);
+    return stats;
   } catch (error) {
-    console.error('Error fetching employee stats:', error);
+    console.error('❌ Error fetching employee stats:', error);
     throw error;
   }
 }

@@ -3,11 +3,17 @@ import { useQuery } from "@tanstack/react-query";
 import { getEmployeeStats } from "@/utils/employeeStats";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useMemo } from "react";
 
 export default function ScheduleView() {
-  const { data: stats, isLoading } = useQuery({
-    queryKey: ['employee-stats', new Date()],
-    queryFn: () => getEmployeeStats(new Date()),
+  // Create a stable date reference
+  const currentDate = useMemo(() => new Date(), []);
+
+  const { data: stats, isLoading, error } = useQuery({
+    queryKey: ['employee-stats', currentDate.toISOString().split('T')[0]],
+    queryFn: () => getEmployeeStats(currentDate),
+    staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
+    retry: 2
   });
 
   return (
@@ -20,6 +26,10 @@ export default function ScheduleView() {
               <div className="space-y-2">
                 <Skeleton className="h-4 w-48" />
                 <Skeleton className="h-4 w-40" />
+              </div>
+            ) : error ? (
+              <div className="text-sm text-destructive">
+                Error loading statistics
               </div>
             ) : (
               <div className="text-sm space-y-1">
