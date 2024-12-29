@@ -1,8 +1,9 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Plus, AlertTriangle } from "lucide-react";
 import { useState } from "react";
 import { AssignEmployeeDialog } from "./AssignEmployeeDialog";
+import { Tooltip } from "@/components/ui/tooltip";
 
 interface ShiftLabelProps {
   shiftType: string;
@@ -46,9 +47,16 @@ export function ShiftLabel({
         <Badge variant="outline" className={colorClasses}>
           {shiftType}
         </Badge>
-        <span className={`text-sm ${isUnderStaffed ? 'text-red-500 font-medium' : 'text-muted-foreground'}`}>
-          ({currentStaff}/{minStaff})
-        </span>
+        <div className="flex items-center gap-1">
+          <span className={`text-sm ${isUnderStaffed ? 'text-red-500 font-medium' : 'text-muted-foreground'}`}>
+            ({currentStaff}/{minStaff})
+          </span>
+          {isUnderStaffed && (
+            <Tooltip content="Understaffed shift">
+              <AlertTriangle className="h-4 w-4 text-red-500" />
+            </Tooltip>
+          )}
+        </div>
       </div>
       {scheduleId && (
         <>

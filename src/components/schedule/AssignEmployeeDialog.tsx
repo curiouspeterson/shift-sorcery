@@ -39,7 +39,9 @@ export function AssignEmployeeDialog({
 
   const assignEmployee = async (employeeId: string) => {
     try {
-      const { error } = await supabase
+      console.log('Assigning employee:', employeeId, 'to shift:', shiftId);
+      
+      const { error: assignmentError } = await supabase
         .from('schedule_assignments')
         .insert({
           schedule_id: scheduleId,
@@ -48,9 +50,12 @@ export function AssignEmployeeDialog({
           date: date
         });
 
-      if (error) throw error;
+      if (assignmentError) throw assignmentError;
 
-      await queryClient.invalidateQueries({ queryKey: ['schedule'] });
+      await queryClient.invalidateQueries({ 
+        queryKey: ['schedule']
+      });
+      
       toast.success("Employee assigned successfully");
       onOpenChange(false);
     } catch (error: any) {
@@ -73,7 +78,8 @@ export function AssignEmployeeDialog({
           ) : (
             <EmployeeList 
               employees={availableEmployees} 
-              onAssign={assignEmployee} 
+              onAssign={assignEmployee}
+              isLoading={loading}
             />
           )}
         </ScrollArea>
