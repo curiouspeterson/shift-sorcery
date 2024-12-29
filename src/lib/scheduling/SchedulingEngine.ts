@@ -1,25 +1,21 @@
-import { format, addDays, startOfWeek } from 'date-fns';
-import {
-  SchedulingContext,
-  SchedulingResult,
-  ScheduleAssignment,
-  Employee,
-  Shift,
-  CoverageStatus
+import { format, addDays } from 'date-fns';
+import { 
+  SchedulingContext, 
+  SchedulingResult, 
+  ScheduleAssignment, 
+  Employee, 
+  CoverageStatus 
 } from './types';
-import { ShiftDistributor } from './ShiftDistributor';
 import { CoverageCalculator } from './CoverageCalculator';
-import { EmployeeScorer } from './EmployeeScorer';
+import { ShiftDistributor } from './ShiftDistributor';
 
 export class SchedulingEngine {
-  private shiftDistributor: ShiftDistributor;
   private coverageCalculator: CoverageCalculator;
-  private employeeScorer: EmployeeScorer;
+  private shiftDistributor: ShiftDistributor;
 
   constructor() {
-    this.shiftDistributor = new ShiftDistributor();
     this.coverageCalculator = new CoverageCalculator();
-    this.employeeScorer = new EmployeeScorer();
+    this.shiftDistributor = new ShiftDistributor();
   }
 
   public async generateSchedule(
@@ -37,50 +33,49 @@ export class SchedulingEngine {
       // Process each day of the week
       for (let i = 0; i < 7; i++) {
         const currentDate = format(addDays(weekStartDate, i), 'yyyy-MM-dd');
-        const dayOfWeek = addDays(weekStartDate, i).getDay();
-        
         console.log(`\n📅 Processing ${format(addDays(weekStartDate, i), 'EEEE, MMM d')}`);
 
         // Get available employees for this day
         const availableEmployees = this.getAvailableEmployees(
           context,
-          dayOfWeek,
+          addDays(weekStartDate, i).getDay(),
           currentDate
-        );
-
-        // Calculate coverage requirements
-        const coverage = this.coverageCalculator.calculateRequirements(
-          context.coverageRequirements,
-          dayOfWeek
         );
 
         // Distribute shifts to meet coverage
         const dailyAssignments = this.shiftDistributor.distributeShifts(
-          context.shifts,
-          availableEmployees,
-          coverage,
+          currentDate,
           scheduleId,
-          currentDate
+          availableEmployees,
+          context.shifts,
+          context.availability
         );
 
         assignments.push(...dailyAssignments);
 
-        // Check if coverage requirements were met
-        const coverageStatus = this.coverageCalculator.checkCoverage(
+        // Check coverage requirements
+        const coverage = this.coverageCalculator.calculateCoverage(
           dailyAssignments,
-          coverage
+          context.shifts,
+          context.coverageRequirements
         );
 
-        if (!this.isCoverageMet(coverageStatus)) {
+        if (!this.isCoverageMet(coverage)) {
           messages.push(`⚠️ Coverage requirements not fully met for ${currentDate}`);
           success = false;
         }
       }
 
+      const finalCoverage = this.coverageCalculator.calculateCoverage(
+        assignments,
+        context.shifts,
+        context.coverageRequirements
+      );
+
       return {
         success,
         assignments,
-        coverage: this.calculateFinalCoverage(assignments, context),
+        coverage: finalCoverage,
         messages
       };
 
@@ -122,16 +117,5 @@ export class SchedulingEngine {
 
   private isCoverageMet(coverage: CoverageStatus): boolean {
     return Object.values(coverage).every(status => status.isMet);
-  }
-
-  private calculateFinalCoverage(
-    assignments: ScheduleAssignment[],
-    context: SchedulingContext
-  ): CoverageStatus {
-    return this.coverageCalculator.calculateFinalCoverage(
-      assignments,
-      context.shifts,
-      context.coverageRequirements
-    );
   }
 }

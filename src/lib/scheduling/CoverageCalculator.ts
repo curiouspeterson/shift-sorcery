@@ -1,69 +1,27 @@
-import { CoverageRequirement, CoverageStatus, ScheduleAssignment, Shift } from './types';
-import { getShiftType } from '@/utils/shiftTypeUtils';
+import { CoverageStatus, ScheduleAssignment, Shift, CoverageRequirement } from './types';
+import { getShiftType } from '@/utils/shiftUtils';
 
 export class CoverageCalculator {
-  public calculateRequirements(
-    requirements: CoverageRequirement[],
-    dayOfWeek: number
-  ): CoverageStatus {
-    const coverage: CoverageStatus = {};
-    
-    // Initialize coverage requirements for each shift type
-    const shiftTypes = ['Day Shift Early', 'Day Shift', 'Swing Shift', 'Graveyard'];
-    
-    shiftTypes.forEach(type => {
-      coverage[type] = {
-        required: this.getRequiredStaffForShiftType(requirements, type),
-        assigned: 0,
-        isMet: false
-      };
-    });
-
-    return coverage;
-  }
-
-  public checkCoverage(
-    assignments: ScheduleAssignment[],
-    coverage: CoverageStatus
-  ): CoverageStatus {
-    const updatedCoverage = { ...coverage };
-
-    // Count assignments by shift type
-    assignments.forEach(assignment => {
-      const shiftType = getShiftType(assignment.shift_id);
-      if (updatedCoverage[shiftType]) {
-        updatedCoverage[shiftType].assigned++;
-        updatedCoverage[shiftType].isMet = 
-          updatedCoverage[shiftType].assigned >= 
-          updatedCoverage[shiftType].required;
-      }
-    });
-
-    return updatedCoverage;
-  }
-
-  public calculateFinalCoverage(
+  calculateCoverage(
     assignments: ScheduleAssignment[],
     shifts: Shift[],
     requirements: CoverageRequirement[]
   ): CoverageStatus {
     const coverage: CoverageStatus = {};
     
-    // Initialize coverage status for each shift type
+    // Initialize coverage tracking for each shift type
     const shiftTypes = ['Day Shift Early', 'Day Shift', 'Swing Shift', 'Graveyard'];
-    
     shiftTypes.forEach(type => {
-      const required = this.getRequiredStaffForShiftType(requirements, type);
-      const assigned = assignments.filter(a => {
-        const shift = shifts.find(s => s.id === a.shift_id);
-        return shift && getShiftType(shift.start_time) === type;
-      }).length;
-
       coverage[type] = {
-        required,
-        assigned,
-        isMet: assigned >= required
+        required: this.getRequiredStaffForShiftType(requirements, type),
+        assigned: this.getAssignedStaffForShiftType(assignments, shifts, type),
+        isMet: false
       };
+    });
+
+    // Update isMet status
+    Object.keys(coverage).forEach(type => {
+      coverage[type].isMet = coverage[type].assigned >= coverage[type].required;
     });
 
     return coverage;
@@ -73,16 +31,24 @@ export class CoverageCalculator {
     requirements: CoverageRequirement[],
     shiftType: string
   ): number {
-    // Find all requirements that overlap with this shift type
-    const relevantRequirements = requirements.filter(req => {
+    let maxRequired = 0;
+    requirements.forEach(req => {
       const reqShiftType = getShiftType(req.start_time);
-      return reqShiftType === shiftType;
+      if (reqShiftType === shiftType) {
+        maxRequired = Math.max(maxRequired, req.min_employees);
+      }
     });
+    return maxRequired;
+  }
 
-    // Return the maximum required staff from overlapping requirements
-    return Math.max(
-      ...relevantRequirements.map(req => req.min_employees),
-      0 // Default to 0 if no requirements found
-    );
+  private getAssignedStaffForShiftType(
+    assignments: ScheduleAssignment[],
+    shifts: Shift[],
+    shiftType: string
+  ): number {
+    return assignments.filter(assignment => {
+      const shift = shifts.find(s => s.id === assignment.shift_id);
+      return shift && getShiftType(shift.start_time) === shiftType;
+    }).length;
   }
 }

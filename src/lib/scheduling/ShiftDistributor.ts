@@ -1,5 +1,5 @@
 import { Employee, Shift, ScheduleAssignment, CoverageStatus } from './types';
-import { getShiftType } from '@/utils/shiftTypeUtils';
+import { getShiftType } from '@/utils/shiftUtils';
 
 export class ShiftDistributor {
   private weeklyHours: Map<string, number> = new Map();
