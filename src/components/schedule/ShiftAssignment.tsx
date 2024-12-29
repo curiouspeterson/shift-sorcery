@@ -56,10 +56,7 @@ export function ShiftAssignment({ assignment }: ShiftAssignmentProps) {
         </div>
         <div className="flex flex-col items-end text-sm">
           <span className="font-medium text-muted-foreground">
-            {assignment.shift.name}
-          </span>
-          <span className="text-muted-foreground">
-            {formatTime(assignment.shift.start_time)} - {formatTime(assignment.shift.end_time)}
+            {assignment.shift.name} ({formatTime(assignment.shift.start_time)} - {formatTime(assignment.shift.end_time)})
           </span>
         </div>
       </div>
