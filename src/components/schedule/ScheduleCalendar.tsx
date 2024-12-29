@@ -2,9 +2,7 @@ import { format, startOfWeek, addDays } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { ShiftLabel } from "./ShiftLabel";
-import { ShiftAssignment } from "./ShiftAssignment";
-import { getShiftType, countStaffByShiftType, getRequiredStaffForShiftType } from "./ShiftUtils";
+import { DailySchedule } from "./DailySchedule";
 
 interface ScheduleCalendarProps {
   selectedDate: Date;
@@ -31,42 +29,6 @@ export function ScheduleCalendar({
     }
   });
 
-  const sortAssignmentsByShiftType = (assignments: any[]) => {
-    const shiftOrder = {
-      "Day Shift Early": 1,
-      "Day Shift": 2,
-      "Swing Shift": 3,
-      "Graveyard": 4
-    };
-
-    return [...assignments].sort((a, b) => {
-      const aType = getShiftType(a.shift.start_time);
-      const bType = getShiftType(b.shift.start_time);
-      
-      // First sort by shift type
-      const typeComparison = (shiftOrder[aType as keyof typeof shiftOrder] || 0) - 
-                            (shiftOrder[bType as keyof typeof shiftOrder] || 0);
-      
-      if (typeComparison !== 0) return typeComparison;
-      
-      // If same shift type, sort by start time
-      const getMinutes = (timeStr: string) => {
-        const [hours, minutes] = timeStr.split(':').map(Number);
-        return hours * 60 + minutes;
-      };
-      
-      return getMinutes(a.shift.start_time) - getMinutes(b.shift.start_time);
-    });
-  };
-
-  const shiftTypes = ["Day Shift Early", "Day Shift", "Swing Shift", "Graveyard"];
-
-  const getShiftAssignments = (assignments: any[], date: string) => {
-    return assignments?.filter(
-      (assignment: any) => assignment.date === date
-    ) || [];
-  };
-
   return (
     <Card>
       <CardHeader>
@@ -76,43 +38,15 @@ export function ScheduleCalendar({
         <div className="space-y-6">
           {Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)).map((day) => {
             const formattedDate = format(day, "yyyy-MM-dd");
-            const dayAssignments = getShiftAssignments(scheduleData?.schedule_assignments, formattedDate);
-            const sortedAssignments = sortAssignmentsByShiftType(dayAssignments);
-
+            
             return (
-              <div key={day.toISOString()} className="border-b pb-4 last:border-0">
-                <h3 className="font-medium mb-2">{format(day, "EEEE, MMM d")}</h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
-                  {shiftTypes.map(shiftType => {
-                    const currentStaff = countStaffByShiftType(dayAssignments, shiftType);
-                    const minStaff = getRequiredStaffForShiftType(coverageRequirements || [], shiftType);
-                    
-                    return (
-                      <ShiftLabel
-                        key={shiftType}
-                        shiftType={shiftType}
-                        currentStaff={currentStaff}
-                        minStaff={minStaff}
-                        date={formattedDate}
-                      />
-                    );
-                  })}
-                </div>
-                <div className="space-y-2">
-                  {sortedAssignments.map((assignment: any) => (
-                    <ShiftAssignment
-                      key={assignment.id}
-                      assignment={assignment}
-                    />
-                  ))}
-                  {(!scheduleData?.schedule_assignments ||
-                    !dayAssignments.length) && (
-                    <p className="text-sm text-muted-foreground">
-                      No shifts scheduled
-                    </p>
-                  )}
-                </div>
-              </div>
+              <DailySchedule
+                key={day.toISOString()}
+                day={day}
+                scheduleData={scheduleData}
+                coverageRequirements={coverageRequirements || []}
+                formattedDate={formattedDate}
+              />
             );
           })}
         </div>
