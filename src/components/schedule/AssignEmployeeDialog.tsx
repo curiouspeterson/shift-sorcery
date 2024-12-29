@@ -9,8 +9,8 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { calculateShiftHours } from "@/utils/shiftTypeUtils";
 import { useQueryClient } from "@tanstack/react-query";
+import { Loader2 } from "lucide-react";
 
 interface AssignEmployeeDialogProps {
   isOpen: boolean;
@@ -35,14 +35,15 @@ export function AssignEmployeeDialog({
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && shiftId && date) {
       fetchAvailableEmployees();
-    } else {
-      // Reset state when dialog closes
+    }
+    // Reset state when dialog closes
+    return () => {
       setAvailableEmployees([]);
       setLoading(false);
       setError(null);
-    }
+    };
   }, [isOpen, shiftId, date]);
 
   const fetchAvailableEmployees = async () => {
@@ -52,13 +53,19 @@ export function AssignEmployeeDialog({
     try {
       const dayOfWeek = new Date(date).getDay();
 
+      // Get the shift details first
+      const { data: shiftDetails, error: shiftError } = await supabase
+        .from('shifts')
+        .select('*')
+        .eq('id', shiftId)
+        .single();
+
+      if (shiftError) throw shiftError;
+
       // Get existing assignments for this date
       const { data: existingAssignments, error: assignmentsError } = await supabase
         .from('schedule_assignments')
-        .select(`
-          employee_id,
-          shift:shifts(*)
-        `)
+        .select('employee_id')
         .eq('date', date);
 
       if (assignmentsError) throw assignmentsError;
@@ -75,6 +82,8 @@ export function AssignEmployeeDialog({
         .eq('employee_availability.shift_id', shiftId);
 
       if (employeesError) throw employeesError;
+
+      console.log('Found employees:', employees);
 
       if (!employees) {
         setAvailableEmployees([]);
@@ -106,31 +115,32 @@ export function AssignEmployeeDialog({
       // Calculate weekly hours for each employee
       const employeeHours: Record<string, number> = {};
       weeklyAssignments?.forEach(assignment => {
-        const hours = calculateShiftHours(assignment.shift);
+        const hours = assignment.shift.duration_hours || 0;
         employeeHours[assignment.employee_id] = 
           (employeeHours[assignment.employee_id] || 0) + hours;
       });
 
-      // Get the current shift details
-      const { data: currentShift, error: shiftError } = await supabase
-        .from('shifts')
-        .select('*')
-        .eq('id', shiftId)
-        .single();
-
-      if (shiftError) throw shiftError;
-
       // Filter available employees
       const available = employees.filter(employee => {
         // Skip if already scheduled today
-        if (scheduledEmployeeIds.has(employee.id)) return false;
+        if (scheduledEmployeeIds.has(employee.id)) {
+          console.log(`Employee ${employee.id} already scheduled today`);
+          return false;
+        }
 
         // Skip if would exceed weekly hours limit
         const currentHours = employeeHours[employee.id] || 0;
-        const wouldExceedLimit = currentHours + calculateShiftHours(currentShift) > employee.weekly_hours_limit;
-        return !wouldExceedLimit;
+        const wouldExceedLimit = currentHours + (shiftDetails.duration_hours || 0) > employee.weekly_hours_limit;
+        
+        if (wouldExceedLimit) {
+          console.log(`Employee ${employee.id} would exceed weekly hours limit`);
+          return false;
+        }
+
+        return true;
       });
 
+      console.log('Available employees after filtering:', available);
       setAvailableEmployees(available);
     } catch (error: any) {
       console.error('Error fetching available employees:', error);
@@ -152,18 +162,12 @@ export function AssignEmployeeDialog({
           date: date
         });
 
-      if (error) {
-        console.error('Error creating assignment:', error);
-        toast.error("Failed to create assignment");
-        return;
-      }
+      if (error) throw error;
 
-      // Invalidate and refetch the schedule data
       await queryClient.invalidateQueries({ queryKey: ['schedule'] });
-      
       toast.success("Employee assigned successfully");
       onOpenChange(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error assigning employee:', error);
       toast.error("Failed to assign employee");
     }
@@ -179,7 +183,7 @@ export function AssignEmployeeDialog({
           <div className="space-y-2">
             {loading ? (
               <div className="flex items-center justify-center p-4">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900"></div>
+                <Loader2 className="h-6 w-6 animate-spin text-gray-500" />
                 <span className="ml-2 text-sm text-muted-foreground">
                   Loading available employees...
                 </span>
