@@ -1,4 +1,4 @@
-import { format, startOfWeek, addDays } from "date-fns";
+import { format, addDays } from "date-fns";
 
 interface WeekNavigationProps {
   weekStart: Date;
@@ -10,17 +10,13 @@ export function WeekNavigation({ weekStart }: WeekNavigationProps) {
       {Array.from({ length: 7 }, (_, i) => {
         const day = addDays(weekStart, i);
         return (
-          <div 
-            key={day.toISOString()} 
-            className="text-center"
+          <div
+            key={day.toISOString()}
+            className="text-center text-sm font-medium"
           >
-            <span className="text-sm font-medium">
-              {format(day, "EEEE")}
-            </span>
+            {format(day, "EEE")}
             <br />
-            <span className="text-sm text-muted-foreground">
-              {format(day, "MMM d")}
-            </span>
+            {format(day, "MMM d")}
           </div>
         );
       })}
