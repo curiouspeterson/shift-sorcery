@@ -45,6 +45,8 @@ Deno.serve(async (req) => {
       const role = i < 5 ? 'manager' : 'employee'
 
       try {
+        console.log(`Creating user ${email} with role ${role}`)
+
         // Create the user in auth.users
         const { data: { user }, error: createUserError } = await supabase.auth.admin.createUser({
           email,
@@ -63,26 +65,39 @@ Deno.serve(async (req) => {
         }
 
         if (user) {
-          // Manually create the profile since the trigger might not work immediately
-          const { error: profileError } = await supabase
-            .from('profiles')
-            .insert([{
-              id: user.id,
-              first_name: firstName,
-              last_name: lastName,
-              role: role,
-              weekly_hours_limit: 40
-            }])
+          // Wait a short moment to allow the trigger to process
+          await new Promise(resolve => setTimeout(resolve, 1000))
 
-          if (profileError) {
-            console.error(`Error creating profile for ${email}:`, profileError)
-            // Try to delete the auth user if profile creation failed
-            await supabase.auth.admin.deleteUser(user.id)
-            continue
+          // Verify the profile was created
+          const { data: profile, error: profileCheckError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', user.id)
+            .single()
+
+          if (profileCheckError || !profile) {
+            console.log(`Profile not created automatically for ${email}, creating manually...`)
+            // Manually create the profile since the trigger might not have worked
+            const { error: profileError } = await supabase
+              .from('profiles')
+              .insert([{
+                id: user.id,
+                first_name: firstName,
+                last_name: lastName,
+                role: role,
+                weekly_hours_limit: 40
+              }])
+
+            if (profileError) {
+              console.error(`Error creating profile for ${email}:`, profileError)
+              // Try to delete the auth user if profile creation failed
+              await supabase.auth.admin.deleteUser(user.id)
+              continue
+            }
           }
 
           employees.push(user)
-          console.log(`Created user and profile for ${email}`)
+          console.log(`Successfully created user and profile for ${email}`)
         }
       } catch (error) {
         console.error(`Error processing user ${email}:`, error)
