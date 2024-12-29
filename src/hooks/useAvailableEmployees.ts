@@ -35,15 +35,21 @@ export function useAvailableEmployees(
     
     try {
       const dayOfWeek = new Date(date).getDay();
+      console.log('Fetching employees for:', { date, dayOfWeek, shiftId });
 
-      // Get the shift details first
-      const { data: shiftDetails, error: shiftError } = await supabase
-        .from('shifts')
+      // First get all employees
+      const { data: employees, error: employeesError } = await supabase
+        .from('profiles')
         .select('*')
-        .eq('id', shiftId)
-        .single();
+        .eq('role', 'employee');
 
-      if (shiftError) throw shiftError;
+      if (employeesError) throw employeesError;
+      console.log('Found employees:', employees?.length || 0);
+
+      if (!employees) {
+        setAvailableEmployees([]);
+        return;
+      }
 
       // Get existing assignments for this date
       const { data: existingAssignments, error: assignmentsError } = await supabase
@@ -52,33 +58,19 @@ export function useAvailableEmployees(
         .eq('date', date);
 
       if (assignmentsError) throw assignmentsError;
+      console.log('Existing assignments:', existingAssignments?.length || 0);
 
-      // Get all employees with their availability for this day and shift
-      const { data: employees, error: employeesError } = await supabase
-        .from('profiles')
-        .select(`
-          *,
-          employee_availability!inner(*)
-        `)
-        .eq('role', 'employee')
-        .eq('employee_availability.day_of_week', dayOfWeek)
-        .eq('employee_availability.shift_id', shiftId);
+      // Get availability for this day and shift
+      const { data: availability, error: availabilityError } = await supabase
+        .from('employee_availability')
+        .select('employee_id')
+        .eq('day_of_week', dayOfWeek)
+        .eq('shift_id', shiftId);
 
-      if (employeesError) throw employeesError;
+      if (availabilityError) throw availabilityError;
+      console.log('Found availability records:', availability?.length || 0);
 
-      console.log('Found employees:', employees);
-
-      if (!employees) {
-        setAvailableEmployees([]);
-        return;
-      }
-
-      // Filter out employees already scheduled for this date
-      const scheduledEmployeeIds = new Set(
-        existingAssignments?.map(a => a.employee_id) || []
-      );
-
-      // Get weekly hours for each employee
+      // Get weekly assignments to check hours
       const weekStart = new Date(date);
       weekStart.setDate(weekStart.getDate() - weekStart.getDay());
       const weekEnd = new Date(weekStart);
@@ -88,7 +80,7 @@ export function useAvailableEmployees(
         .from('schedule_assignments')
         .select(`
           employee_id,
-          shift:shifts(*)
+          shift:shifts(duration_hours)
         `)
         .gte('date', weekStart.toISOString().split('T')[0])
         .lte('date', weekEnd.toISOString().split('T')[0]);
@@ -98,12 +90,29 @@ export function useAvailableEmployees(
       // Calculate weekly hours for each employee
       const employeeHours: Record<string, number> = {};
       weeklyAssignments?.forEach(assignment => {
-        const hours = assignment.shift.duration_hours || 0;
+        const hours = assignment.shift?.duration_hours || 0;
         employeeHours[assignment.employee_id] = 
-          (employeeHours[assignment.employee_id] || 0) + hours;
+          (employeeHours[assignment.employee_id] || 0) + Number(hours);
       });
 
+      // Get the shift details for duration check
+      const { data: shiftDetails, error: shiftError } = await supabase
+        .from('shifts')
+        .select('duration_hours')
+        .eq('id', shiftId)
+        .single();
+
+      if (shiftError) throw shiftError;
+
       // Filter available employees
+      const scheduledEmployeeIds = new Set(
+        existingAssignments?.map(a => a.employee_id) || []
+      );
+
+      const availableEmployeeIds = new Set(
+        availability?.map(a => a.employee_id) || []
+      );
+
       const available = employees.filter(employee => {
         // Skip if already scheduled today
         if (scheduledEmployeeIds.has(employee.id)) {
@@ -111,9 +120,15 @@ export function useAvailableEmployees(
           return false;
         }
 
+        // Skip if no availability
+        if (!availableEmployeeIds.has(employee.id)) {
+          console.log(`Employee ${employee.id} has no availability for this shift`);
+          return false;
+        }
+
         // Skip if would exceed weekly hours limit
         const currentHours = employeeHours[employee.id] || 0;
-        const wouldExceedLimit = currentHours + (shiftDetails.duration_hours || 0) > employee.weekly_hours_limit;
+        const wouldExceedLimit = currentHours + Number(shiftDetails?.duration_hours || 0) > employee.weekly_hours_limit;
         
         if (wouldExceedLimit) {
           console.log(`Employee ${employee.id} would exceed weekly hours limit`);
