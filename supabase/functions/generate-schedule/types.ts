@@ -1,3 +1,5 @@
+export type ShiftType = 'Day Shift Early' | 'Day Shift' | 'Swing Shift' | 'Graveyard';
+
 export interface Employee {
   id: string;
   first_name: string;
@@ -62,8 +64,6 @@ export interface CoverageStatus {
     isMet: boolean;
   };
 }
-
-export type ShiftType = 'Day Shift Early' | 'Day Shift' | 'Swing Shift' | 'Graveyard';
 
 export interface SchedulingContext {
   employees: Employee[];

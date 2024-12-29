@@ -1,5 +1,5 @@
-import { CoverageStatus, ScheduleAssignment, Shift, CoverageRequirement } from './types';
-import { getShiftType } from './ShiftUtils';
+import { CoverageStatus, ScheduleAssignment, Shift, CoverageRequirement } from './types.ts';
+import { getShiftType } from './ShiftUtils.ts';
 
 export class CoverageCalculator {
   calculateCoverage(

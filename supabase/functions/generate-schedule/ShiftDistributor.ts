@@ -1,5 +1,5 @@
-import { Employee, Shift, ScheduleAssignment, EmployeeAvailability } from './types';
-import { getShiftType } from './ShiftUtils';
+import { Employee, Shift, ScheduleAssignment, EmployeeAvailability } from './types.ts';
+import { getShiftType } from './ShiftUtils.ts';
 
 export class ShiftDistributor {
   distributeShifts(
