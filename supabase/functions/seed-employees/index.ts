@@ -7,14 +7,42 @@ const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const supabase = createClient(supabaseUrl, serviceRoleKey)
 
 const firstNames = [
-  'James', 'John', 'Robert', 'Michael', 'William',
-  'David', 'Richard', 'Joseph', 'Thomas', 'Charles'
+  'James', 'John', 'Robert', 'Michael', 'William', 'David', 'Richard', 'Joseph', 'Thomas', 'Charles',
+  'Christopher', 'Daniel', 'Matthew', 'Anthony', 'Donald', 'Mark', 'Paul', 'Steven', 'Andrew', 'Kenneth',
+  'Joshua', 'Kevin', 'Brian', 'George', 'Edward', 'Ronald', 'Timothy', 'Jason', 'Jeffrey', 'Ryan',
+  'Jacob', 'Gary', 'Nicholas', 'Eric', 'Jonathan', 'Stephen', 'Larry', 'Justin', 'Scott', 'Brandon',
+  'Benjamin', 'Samuel', 'Gregory', 'Alexander', 'Frank', 'Patrick', 'Raymond', 'Jack', 'Dennis', 'Jerry'
 ]
 
 const lastNames = [
-  'Smith', 'Johnson', 'Williams', 'Brown', 'Jones',
-  'Garcia', 'Miller', 'Davis', 'Rodriguez', 'Martinez'
+  'Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis', 'Rodriguez', 'Martinez',
+  'Hernandez', 'Lopez', 'Gonzalez', 'Wilson', 'Anderson', 'Thomas', 'Taylor', 'Moore', 'Jackson', 'Martin',
+  'Lee', 'Perez', 'Thompson', 'White', 'Harris', 'Sanchez', 'Clark', 'Ramirez', 'Lewis', 'Robinson',
+  'Walker', 'Young', 'Allen', 'King', 'Wright', 'Scott', 'Torres', 'Nguyen', 'Hill', 'Flores',
+  'Green', 'Adams', 'Nelson', 'Baker', 'Hall', 'Rivera', 'Campbell', 'Mitchell', 'Carter', 'Roberts'
 ]
+
+// Function to generate unique name combinations
+function generateUniqueNames(count: number) {
+  const combinations: { firstName: string; lastName: string }[] = [];
+  let firstIndex = 0;
+  let lastIndex = 0;
+
+  while (combinations.length < count && firstIndex < firstNames.length) {
+    combinations.push({
+      firstName: firstNames[firstIndex],
+      lastName: lastNames[lastIndex],
+    });
+
+    lastIndex++;
+    if (lastIndex >= lastNames.length) {
+      lastIndex = 0;
+      firstIndex++;
+    }
+  }
+
+  return combinations;
+}
 
 Deno.serve(async (req) => {
   // Handle CORS preflight requests
@@ -27,11 +55,11 @@ Deno.serve(async (req) => {
     
     const employees = []
     const timestamp = Date.now()
+    const uniqueNames = generateUniqueNames(150)
 
-    // Create 5 test users
-    for (let i = 0; i < 5; i++) {
-      const firstName = firstNames[i]
-      const lastName = lastNames[i]
+    // Create test users
+    for (let i = 0; i < uniqueNames.length; i++) {
+      const { firstName, lastName } = uniqueNames[i]
       const email = `test.${firstName.toLowerCase()}.${lastName.toLowerCase()}.${timestamp}@example.com`
       const role = i === 0 ? 'manager' : 'employee' // First user is manager, rest are employees
 
