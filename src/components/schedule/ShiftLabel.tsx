@@ -1,9 +1,6 @@
-import { Plus } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
-import { getShiftType } from "./ShiftUtils";
+import { Badge } from "@/components/ui/badge";
+import { getShiftType } from "@/utils/shiftTypeUtils";
+import { SHIFT_CONFIGS } from "@/utils/shiftTypeUtils";
 
 interface ShiftLabelProps {
   shiftType: string;
@@ -15,91 +12,34 @@ interface ShiftLabelProps {
 const getShiftColor = (shiftType: string) => {
   switch (shiftType) {
     case "Day Shift Early":
-      return "text-green-600";
+      return "bg-green-100 text-green-800 border-green-200";
     case "Day Shift":
-      return "text-orange-600";
+      return "bg-orange-100 text-orange-800 border-orange-200";
     case "Swing Shift":
-      return "text-purple-600";
+      return "bg-purple-100 text-purple-800 border-purple-200";
     case "Graveyard":
-      return "text-pink-600";
+      return "bg-pink-100 text-pink-800 border-pink-200";
     default:
-      return "text-muted-foreground";
+      return "bg-muted text-muted-foreground";
   }
 };
 
 export function ShiftLabel({ shiftType, currentStaff, minStaff, date }: ShiftLabelProps) {
-  const queryClient = useQueryClient();
-  const isMet = currentStaff >= minStaff;
-  const baseColor = getShiftColor(shiftType);
-  const color = isMet ? "text-green-500" : "text-red-500";
-
-  const { data: shifts } = useQuery({
-    queryKey: ['shifts-by-type', shiftType],
-    queryFn: async () => {
-      const startHour = getStartHourForShiftType(shiftType);
-      let query = supabase
-        .from('shifts')
-        .select('*')
-        .order('start_time');
-      
-      // Handle the overnight shift case specially
-      if (startHour === 22) {
-        query = query.or(`start_time.gte.${startHour}:00,start_time.lt.06:00`); // Updated to 6 AM for graveyard
-      } else {
-        const endHour = startHour + 8;
-        query = query.gte('start_time', `${startHour}:00`).lt('start_time', `${endHour}:00`);
-      }
-      
-      const { data, error } = await query;
-      
-      if (error) {
-        console.error('Error fetching shifts:', error);
-        throw error;
-      }
-      return data;
-    },
-  });
-
-  const addEmployeeMutation = useMutation({
-    mutationFn: async () => {
-      toast.info("This feature will be implemented soon!");
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["schedule"] });
-    },
-  });
-
-  function getStartHourForShiftType(type: string): number {
-    switch (type) {
-      case "Day Shift Early":
-        return 4;
-      case "Day Shift":
-        return 8;
-      case "Swing Shift":
-        return 16;
-      case "Graveyard":
-        return 22; // Graveyard shift starts at 10 PM
-      default:
-        return 0;
-    }
-  }
+  const colorClasses = getShiftColor(shiftType);
+  const isUnderStaffed = currentStaff < minStaff;
+  const config = SHIFT_CONFIGS[shiftType as keyof typeof SHIFT_CONFIGS];
+  const requiredStaff = config?.minStaff || minStaff;
 
   return (
-    <div className="flex items-center gap-1 text-sm">
-      <span className={`${baseColor} font-medium`}>
-        {shiftType}{" "}
-      </span>
-      <span className={color}>
-        ({currentStaff}/{minStaff})
-      </span>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="h-4 w-4"
-        onClick={() => addEmployeeMutation.mutate()}
-      >
-        <Plus className="h-3 w-3" />
-      </Button>
+    <div className="flex items-center justify-between p-2 rounded-lg bg-muted">
+      <div className="flex items-center gap-2">
+        <Badge variant="outline" className={colorClasses}>
+          {shiftType}
+        </Badge>
+        <span className={`text-sm ${isUnderStaffed ? 'text-red-500 font-medium' : 'text-muted-foreground'}`}>
+          ({currentStaff}/{requiredStaff})
+        </span>
+      </div>
     </div>
   );
 }

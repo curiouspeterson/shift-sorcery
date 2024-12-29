@@ -13,3 +13,15 @@ export interface CoverageRequirement {
   end_time: string;
   min_employees: number;
 }
+
+export interface ShiftDuration {
+  hours: number;
+  start_time: string;
+  end_time: string;
+}
+
+export interface ShiftTypeConfig {
+  type: ShiftType;
+  durations: ShiftDuration[];
+  minStaff: number;
+}
