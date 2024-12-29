@@ -30,22 +30,17 @@ export class SchedulingStrategy {
     const dayOfWeek = new Date(currentDate).getDay();
     const shifts = this.shiftTypeManager.groupAndSortShiftsByPriority(data.shifts);
     let overallSuccess = true;
-    let totalRequired = 0;
-    let totalAssigned = 0;
 
-    // First pass: Calculate total requirements and validate data
-    for (const [shiftType, typeShifts] of Object.entries(shifts)) {
-      const required = this.requirementsManager.getRequiredStaffForShiftType(shiftType);
-      totalRequired += required;
-      console.log(`Required staff for ${shiftType}: ${required}`);
-    }
+    // First pass: Calculate requirements and identify peak periods
+    const requirements = this.calculateDailyRequirements(data.coverageReqs, currentDate);
+    console.log('Daily requirements:', requirements);
 
-    // Second pass: Assign shifts with priority and better employee distribution
+    // Second pass: Assign shifts with improved distribution
     for (const [shiftType, typeShifts] of Object.entries(shifts)) {
       console.log(`\nProcessing ${shiftType} shifts...`);
-      const required = this.requirementsManager.getRequiredStaffForShiftType(shiftType);
       
-      const assigned = await this.assignShiftType(
+      const shiftReqs = requirements[shiftType] || { required: 0, isPeak: false };
+      const success = await this.assignShiftType(
         shiftType,
         typeShifts as any[],
         data.employees,
@@ -53,22 +48,31 @@ export class SchedulingStrategy {
         scheduleId,
         currentDate,
         dayOfWeek,
-        required
+        shiftReqs
       );
       
-      totalAssigned += assigned;
-      
-      if (assigned < required) {
-        console.log(`⚠️ Warning: Could not fully staff ${shiftType} for ${currentDate}`);
-        console.log(`Assigned: ${assigned}, Required: ${required}`);
+      if (!success) {
         overallSuccess = false;
       }
     }
 
-    const staffingPercentage = (totalAssigned / totalRequired) * 100;
-    console.log(`📊 Overall staffing for ${currentDate}: ${staffingPercentage.toFixed(1)}% (${totalAssigned}/${totalRequired})`);
+    return overallSuccess;
+  }
+
+  private calculateDailyRequirements(coverageReqs: any[], currentDate: string): Record<string, { required: number; isPeak: boolean }> {
+    const requirements: Record<string, { required: number; isPeak: boolean }> = {};
     
-    return staffingPercentage >= SCHEDULING_CONSTANTS.MIN_STAFF_PERCENTAGE;
+    coverageReqs.forEach(req => {
+      const shiftType = this.shiftTypeManager.getShiftTypeForTime(req.start_time);
+      if (!requirements[shiftType]) {
+        requirements[shiftType] = { required: 0, isPeak: false };
+      }
+      
+      requirements[shiftType].required = Math.max(requirements[shiftType].required, req.min_employees);
+      requirements[shiftType].isPeak = requirements[shiftType].isPeak || req.is_peak_period;
+    });
+
+    return requirements;
   }
 
   private async assignShiftType(
@@ -79,9 +83,10 @@ export class SchedulingStrategy {
     scheduleId: string,
     currentDate: string,
     dayOfWeek: number,
-    required: number
-  ): Promise<number> {
-    if (required === 0) return 0;
+    requirements: { required: number; isPeak: boolean }
+  ): Promise<boolean> {
+    const { required, isPeak } = requirements;
+    if (required === 0) return true;
 
     let assigned = 0;
     const availableEmployees = this.employeeAvailabilityManager.getAvailableEmployees(
@@ -93,37 +98,26 @@ export class SchedulingStrategy {
     );
 
     console.log(`👥 Found ${availableEmployees.length} available employees for ${shiftType}`);
+    console.log(`📊 Requirements: ${required} employees${isPeak ? ' (Peak Period)' : ''}`);
 
-    // Sort shifts by priority (longer shifts first, then by start time)
-    const sortedShifts = [...shifts].sort((a, b) => {
-      const getDuration = (shift: any) => {
-        const startHour = parseInt(shift.start_time.split(':')[0]);
-        const endHour = parseInt(shift.end_time.split(':')[0]);
-        return endHour < startHour ? (endHour + 24) - startHour : endHour - startHour;
-      };
-      
-      const durationDiff = getDuration(b) - getDuration(a);
-      if (durationDiff !== 0) return durationDiff;
-      
-      return a.start_time.localeCompare(b.start_time);
-    });
+    // Sort shifts by priority
+    const sortedShifts = this.sortShiftsByPriority(shifts);
 
-    // Try to assign each shift with improved employee distribution
+    // Try to assign each shift
     for (const shift of sortedShifts) {
       if (assigned >= required) break;
 
-      // Get sorted employees based on multiple factors
-      const sortedEmployees = this.rankEmployees(availableEmployees, shift, currentDate);
+      const sortedEmployees = this.rankEmployeesForShift(
+        availableEmployees,
+        shift,
+        currentDate,
+        isPeak
+      );
       
       for (const employee of sortedEmployees) {
         if (assigned >= required) break;
 
-        if (this.employeeAvailabilityManager.canAssignShift(
-          employee,
-          shift,
-          this.assignmentManager,
-          this.assignmentManager.getWeeklyHoursTracker()
-        )) {
+        if (this.canAssignShift(employee, shift)) {
           console.log(`✅ Assigning ${employee.first_name} ${employee.last_name} to ${shift.name}`);
           
           this.assignmentManager.assignShift(scheduleId, employee, shift, currentDate);
@@ -143,18 +137,51 @@ export class SchedulingStrategy {
     const staffingPercentage = (assigned / required) * 100;
     console.log(`📊 Staffing level for ${shiftType}: ${staffingPercentage.toFixed(1)}% (${assigned}/${required})`);
     
-    return assigned;
+    return staffingPercentage >= SCHEDULING_CONSTANTS.MIN_STAFF_PERCENTAGE;
   }
 
-  private rankEmployees(
+  private sortShiftsByPriority(shifts: any[]): any[] {
+    return [...shifts].sort((a, b) => {
+      // Prioritize longer shifts
+      const durationDiff = b.duration_hours - a.duration_hours;
+      if (durationDiff !== 0) return durationDiff;
+      
+      // Then sort by start time
+      return a.start_time.localeCompare(b.start_time);
+    });
+  }
+
+  private rankEmployeesForShift(
     employees: any[],
     shift: any,
     currentDate: string,
+    isPeakPeriod: boolean
   ): any[] {
     return [...employees].sort((a, b) => {
-      const scoreA = this.employeeScoring.scoreEmployee(a, shift, currentDate, this.assignmentManager.getAssignments());
-      const scoreB = this.employeeScoring.scoreEmployee(b, shift, currentDate, this.assignmentManager.getAssignments());
+      const scoreA = this.employeeScoring.scoreEmployee(
+        a,
+        shift,
+        currentDate,
+        this.assignmentManager.getAssignments(),
+        isPeakPeriod
+      );
+      const scoreB = this.employeeScoring.scoreEmployee(
+        b,
+        shift,
+        currentDate,
+        this.assignmentManager.getAssignments(),
+        isPeakPeriod
+      );
       return scoreB - scoreA;
     });
+  }
+
+  private canAssignShift(employee: any, shift: any): boolean {
+    return this.employeeAvailabilityManager.canAssignShift(
+      employee,
+      shift,
+      this.assignmentManager,
+      this.assignmentManager.getWeeklyHoursTracker()
+    );
   }
 }
