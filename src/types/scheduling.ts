@@ -1,3 +1,5 @@
+import { Shift, ShiftType, CoverageRequirement } from '@/types';
+
 export interface SchedulingContext {
   employees: Employee[];
   shifts: Shift[];
