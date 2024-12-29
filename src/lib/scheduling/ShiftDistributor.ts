@@ -2,6 +2,65 @@ import { Employee, Shift, ScheduleAssignment, EmployeeAvailability } from './typ
 import { getShiftType } from '@/utils/shiftUtils';
 
 export class ShiftDistributor {
+  async distributeLongShifts(
+    date: string,
+    scheduleId: string,
+    employees: Employee[],
+    shifts: Shift[],
+    availability: EmployeeAvailability[]
+  ): Promise<ScheduleAssignment[]> {
+    console.log('📋 Distributing long shifts for date:', date);
+    const longShifts = shifts.filter(shift => shift.duration_hours >= 12);
+    return this.distributeShifts(date, scheduleId, employees, longShifts, availability);
+  }
+
+  async distributeRegularShifts(
+    date: string,
+    scheduleId: string,
+    employees: Employee[],
+    shifts: Shift[],
+    availability: EmployeeAvailability[],
+    existingAssignments: ScheduleAssignment[]
+  ): Promise<ScheduleAssignment[]> {
+    console.log('📋 Distributing regular shifts for date:', date);
+    const regularShifts = shifts.filter(shift => 
+      shift.duration_hours >= 8 && shift.duration_hours < 12
+    );
+    const availableEmployees = this.filterAvailableEmployees(
+      employees,
+      existingAssignments
+    );
+    return this.distributeShifts(date, scheduleId, availableEmployees, regularShifts, availability);
+  }
+
+  async distributeShortShifts(
+    date: string,
+    scheduleId: string,
+    employees: Employee[],
+    shifts: Shift[],
+    availability: EmployeeAvailability[],
+    existingAssignments: ScheduleAssignment[]
+  ): Promise<ScheduleAssignment[]> {
+    console.log('📋 Distributing short shifts for date:', date);
+    const shortShifts = shifts.filter(shift => shift.duration_hours < 8);
+    const availableEmployees = this.filterAvailableEmployees(
+      employees,
+      existingAssignments
+    );
+    return this.distributeShifts(date, scheduleId, availableEmployees, shortShifts, availability);
+  }
+
+  private filterAvailableEmployees(
+    employees: Employee[],
+    existingAssignments: ScheduleAssignment[]
+  ): Employee[] {
+    return employees.filter(employee => 
+      !existingAssignments.some(assignment => 
+        assignment.employee_id === employee.id
+      )
+    );
+  }
+
   distributeShifts(
     date: string,
     scheduleId: string,
