@@ -92,6 +92,7 @@ export type Database = {
           last_name: string
           role: Database["public"]["Enums"]["user_role"]
           updated_at: string
+          weekly_hours_limit: number
         }
         Insert: {
           created_at?: string
@@ -100,6 +101,7 @@ export type Database = {
           last_name: string
           role?: Database["public"]["Enums"]["user_role"]
           updated_at?: string
+          weekly_hours_limit?: number
         }
         Update: {
           created_at?: string
@@ -108,6 +110,7 @@ export type Database = {
           last_name?: string
           role?: Database["public"]["Enums"]["user_role"]
           updated_at?: string
+          weekly_hours_limit?: number
         }
         Relationships: []
       }
@@ -198,28 +201,69 @@ export type Database = {
           },
         ]
       }
+      shift_preferences: {
+        Row: {
+          created_at: string
+          employee_id: string | null
+          id: string
+          preference_level: number
+          shift_type: Database["public"]["Enums"]["shift_type"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          employee_id?: string | null
+          id?: string
+          preference_level: number
+          shift_type: Database["public"]["Enums"]["shift_type"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          employee_id?: string | null
+          id?: string
+          preference_level?: number
+          shift_type?: Database["public"]["Enums"]["shift_type"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shift_preferences_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       shifts: {
         Row: {
           created_at: string
+          duration_hours: number | null
           end_time: string
           id: string
           name: string
+          shift_type: Database["public"]["Enums"]["shift_type"]
           start_time: string
           updated_at: string
         }
         Insert: {
           created_at?: string
+          duration_hours?: number | null
           end_time: string
           id?: string
           name: string
+          shift_type: Database["public"]["Enums"]["shift_type"]
           start_time: string
           updated_at?: string
         }
         Update: {
           created_at?: string
+          duration_hours?: number | null
           end_time?: string
           id?: string
           name?: string
+          shift_type?: Database["public"]["Enums"]["shift_type"]
           start_time?: string
           updated_at?: string
         }
@@ -274,6 +318,7 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
+      shift_type: "Day Shift Early" | "Day Shift" | "Swing Shift" | "Graveyard"
       user_role: "employee" | "manager"
     }
     CompositeTypes: {

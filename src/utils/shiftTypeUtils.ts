@@ -54,6 +54,18 @@ export function getShiftTimeRange(shiftType: ShiftType) {
   };
 }
 
+export function calculateShiftHours(shift: { start_time: string; end_time: string }): number {
+  const start = new Date(`2000-01-01T${shift.start_time}`);
+  let end = new Date(`2000-01-01T${shift.end_time}`);
+  
+  // Handle overnight shifts
+  if (end <= start) {
+    end = new Date(`2000-01-02T${shift.end_time}`);
+  }
+  
+  return (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+}
+
 export function getShiftDuration(startTime: string, endTime: string): number {
   const start = new Date(`2000-01-01T${startTime}`);
   let end = new Date(`2000-01-01T${endTime}`);
