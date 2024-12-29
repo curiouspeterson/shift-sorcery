@@ -1,6 +1,4 @@
 import { ShiftType } from '@/types';
-import { parseTime, doesTimeRangeOverlap } from './timeUtils';
-import type { CoverageRequirement } from '@/types';
 
 export function getShiftType(startTime: string): string {
   const hour = parseInt(startTime.split(':')[0]);
@@ -21,31 +19,4 @@ export function getShiftTimeRange(shiftType: string) {
   };
   
   return shiftTimeRanges[shiftType as keyof typeof shiftTimeRanges];
-}
-
-export function getRequiredStaffForShiftType(requirements: CoverageRequirement[], shiftType: string): number {
-  console.log(`\n🎯 Getting required staff for ${shiftType}`);
-  
-  let requiredStaff = 0;
-  const timeRange = getShiftTimeRange(shiftType);
-  
-  if (!timeRange) {
-    console.warn(`⚠️ Unknown shift type: ${shiftType}`);
-    return 0;
-  }
-  
-  requirements.forEach(req => {
-    const reqStart = parseTime(req.start_time);
-    const reqEnd = parseTime(req.end_time);
-    const periodStart = timeRange.start * 60;
-    const periodEnd = timeRange.end * 60;
-    
-    if (doesTimeRangeOverlap(reqStart, reqEnd, periodStart, periodEnd)) {
-      requiredStaff = Math.max(requiredStaff, req.min_employees);
-      console.log(`📋 Requirement ${req.start_time}-${req.end_time} needs ${req.min_employees} staff`);
-    }
-  });
-  
-  console.log(`✨ Final required staff for ${shiftType}: ${requiredStaff}`);
-  return requiredStaff;
 }

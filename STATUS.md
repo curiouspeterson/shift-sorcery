@@ -39,15 +39,17 @@ ScheduleMe is a web-based employee scheduling application designed to help manag
 
 ### Code Organization
 - ✅ Refactored shift utilities into separate modules
-- ✅ Improved time handling logic
-- ✅ Enhanced shift type management
-- ✅ Better logging for debugging
+- ✅ Created dedicated time handling utilities
+- ✅ Improved shift type management
+- ✅ Enhanced logging for debugging
+- ✅ Better code modularity and organization
 
 ### Scheduling Logic
 - ✅ Improved overnight shift detection
 - ✅ Enhanced staff counting accuracy
 - ✅ Better handling of shift overlaps
 - ✅ More accurate time range calculations
+- ✅ Refined shift type determination
 
 ## Known Issues and Incomplete Features
 

@@ -18,7 +18,6 @@ export function doesTimeRangeOverlap(
     Shift: ${Math.floor(shiftStart/60)}:${String(shiftStart%60).padStart(2, '0')} - ${Math.floor(shiftEnd/60)}:${String(shiftEnd%60).padStart(2, '0')}
     Period: ${Math.floor(periodStart/60)}:${String(periodStart%60).padStart(2, '0')} - ${Math.floor(periodEnd/60)}:${String(periodEnd%60).padStart(2, '0')}`);
 
-  // Normalize all times relative to period start
   const normalizedShiftStart = normalizeMinutes(shiftStart, periodStart);
   const normalizedShiftEnd = normalizeMinutes(shiftEnd, normalizedShiftStart);
   const normalizedPeriodEnd = normalizeMinutes(periodEnd, periodStart);
