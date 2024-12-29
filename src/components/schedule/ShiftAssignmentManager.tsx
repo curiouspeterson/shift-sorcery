@@ -15,7 +15,7 @@ export function ShiftAssignmentManager({ shift, date, scheduleId, assignments }:
 
   const { data: availableEmployees, isLoading } = useQuery({
     queryKey: ['available-employees', date, shift.id],
-    enabled: isDialogOpen, // Only fetch when dialog is open
+    enabled: isDialogOpen,
     queryFn: async () => {
       try {
         // Get all employees
@@ -76,14 +76,22 @@ export function ShiftAssignmentManager({ shift, date, scheduleId, assignments }:
     (a: any) => a.shift_id === shift.id
   );
 
+  const formatTime = (timeStr: string) => {
+    try {
+      return format(new Date(`2000-01-01T${timeStr}`), 'h:mm a');
+    } catch (error) {
+      console.error('Error formatting time:', error);
+      return timeStr;
+    }
+  };
+
   return (
     <Card>
       <CardContent className="p-4">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <Badge variant="outline">
-              {format(new Date(`2000-01-01T${shift.start_time}`), 'h:mm a')} - 
-              {format(new Date(`2000-01-01T${shift.end_time}`), 'h:mm a')}
+            <Badge variant="outline" className="whitespace-nowrap">
+              {formatTime(shift.start_time)} - {formatTime(shift.end_time)}
             </Badge>
             <span className="text-sm text-muted-foreground">
               ({currentAssignments.length} assigned)
