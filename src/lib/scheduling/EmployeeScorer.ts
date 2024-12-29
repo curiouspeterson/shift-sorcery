@@ -2,11 +2,11 @@ import { Employee, Shift } from './types';
 
 export class EmployeeScorer {
   private readonly SCORE_WEIGHTS = {
-    HOURS_UNDER_MIN: 50,
-    HOURS_OVER_MAX: -100,
-    CONSECUTIVE_DAYS: -15,
-    PREFERRED_SHIFT: 20,
-    AVAILABILITY_MATCH: 30
+    HOURS_UNDER_MIN: 50,    // Encourage assigning to employees under minimum hours
+    HOURS_OVER_MAX: -100,   // Heavily penalize exceeding maximum hours
+    CONSECUTIVE_DAYS: -15,  // Penalty for each consecutive day worked
+    PREFERRED_SHIFT: 20,    // Bonus for preferred shift type
+    AVAILABILITY_MATCH: 30  // Bonus for availability match
   };
 
   public scoreEmployee(
