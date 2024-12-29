@@ -90,12 +90,12 @@ export function ShiftAssignmentManager({ shift, date, scheduleId, assignments }:
       <CardContent className="p-4">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <Badge variant="outline" className="whitespace-nowrap">
-              {formatTime(shift.start_time)} - {formatTime(shift.end_time)}
-            </Badge>
-            <span className="text-sm text-muted-foreground">
-              ({currentAssignments.length} assigned)
+            <span className="font-medium">
+              {shift.name} ({formatTime(shift.start_time)} - {formatTime(shift.end_time)})
             </span>
+            <Badge variant="secondary" className="ml-2">
+              ({currentAssignments.length} assigned)
+            </Badge>
           </div>
           <Button 
             variant="outline" 
