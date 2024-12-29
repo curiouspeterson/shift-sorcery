@@ -1,5 +1,4 @@
 import { Employee, Shift, ScheduleAssignment, EmployeeAvailability } from './types.ts';
-import { getShiftType } from './ShiftUtils.ts';
 
 export class ShiftDistributor {
   distributeShifts(
@@ -18,6 +17,14 @@ export class ShiftDistributor {
 
     // Sort shifts by priority (early morning shifts first, then day shifts, etc.)
     const sortedShifts = [...shifts].sort((a, b) => {
+      // First sort by max_employees (higher priority for shifts that need more people)
+      const maxEmployeesA = a.max_employees || 1;
+      const maxEmployeesB = b.max_employees || 1;
+      if (maxEmployeesB !== maxEmployeesA) {
+        return maxEmployeesB - maxEmployeesA;
+      }
+
+      // Then sort by start time
       const timeA = new Date(`2000-01-01T${a.start_time}`).getTime();
       const timeB = new Date(`2000-01-01T${b.start_time}`).getTime();
       return timeA - timeB;
@@ -47,7 +54,19 @@ export class ShiftDistributor {
 
       let assignedCount = 0;
       for (const employee of sortedEmployees) {
-        if (assignedCount >= maxEmployees) break;
+        if (assignedCount >= maxEmployees) {
+          console.log(`✅ Reached maximum employees (${maxEmployees}) for shift ${shift.name}`);
+          break;
+        }
+
+        // Check if employee would exceed weekly hours limit
+        const currentHours = this.getEmployeeAssignedHours(employee.id, assignments);
+        const shiftHours = this.calculateShiftHours(shift);
+        
+        if ((currentHours + shiftHours) > employee.weekly_hours_limit) {
+          console.log(`⚠️ Skip ${employee.first_name}: Would exceed weekly hours limit`);
+          continue;
+        }
 
         assignments.push({
           schedule_id: scheduleId,
@@ -59,6 +78,7 @@ export class ShiftDistributor {
         assignedCount++;
         
         console.log(`✅ Assigned ${employee.first_name} ${employee.last_name} to ${shift.name}`);
+        console.log(`Current weekly hours: ${currentHours + shiftHours}`);
       }
 
       if (assignedCount < maxEmployees) {
@@ -92,20 +112,30 @@ export class ShiftDistributor {
 
         // If shift_id is directly specified in availability, use that
         if (avail.shift_id) {
-          return avail.shift_id === shift.id;
+          const matches = avail.shift_id === shift.id;
+          if (matches) {
+            console.log(`${employee.first_name} has direct availability for ${shift.name}`);
+          }
+          return matches;
         }
 
         // Otherwise check time range overlap
-        return this.isTimeWithinAvailability(
+        const isAvailable = this.isTimeWithinAvailability(
           shift.start_time,
           shift.end_time,
           avail.start_time,
           avail.end_time
         );
+
+        if (isAvailable) {
+          console.log(`${employee.first_name} has time range availability for ${shift.name}`);
+        }
+
+        return isAvailable;
       });
 
       if (!hasAvailability) {
-        console.log(`${employee.first_name} ${employee.last_name} has no availability for shift ${shift.name}`);
+        console.log(`${employee.first_name} ${employee.last_name} has no availability for ${shift.name}`);
       }
 
       return hasAvailability;
@@ -146,10 +176,23 @@ export class ShiftDistributor {
     return shiftStartMins >= availStartMins && shiftEndMins <= availEndMins;
   }
 
+  private calculateShiftHours(shift: Shift): number {
+    const start = new Date(`2000-01-01T${shift.start_time}`);
+    let end = new Date(`2000-01-01T${shift.end_time}`);
+    
+    if (end <= start) {
+      end = new Date(`2000-01-02T${shift.end_time}`);
+    }
+    
+    return (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+  }
+
   private getEmployeeAssignedHours(
     employeeId: string,
     assignments: ScheduleAssignment[]
   ): number {
-    return assignments.filter(a => a.employee_id === employeeId).length * 8; // Assuming 8-hour shifts
+    return assignments
+      .filter(a => a.employee_id === employeeId)
+      .reduce((total, assignment) => total + 8, 0); // Assuming 8-hour shifts for simplicity
   }
 }
