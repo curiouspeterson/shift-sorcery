@@ -6,7 +6,6 @@ const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
 const supabase = createClient(supabaseUrl, serviceRoleKey)
 
-// Extended list of first names and last names for more realistic test data
 const firstNames = [
   'James', 'John', 'Robert', 'Michael', 'William', 'David', 'Richard', 'Joseph', 'Thomas', 'Charles',
   'Mary', 'Patricia', 'Jennifer', 'Linda', 'Elizabeth', 'Barbara', 'Susan', 'Jessica', 'Sarah', 'Karen',
@@ -31,7 +30,7 @@ Deno.serve(async (req) => {
     const employees = []
     const existingUsers = new Set()
 
-    // First, get all existing users
+    // First, get all existing users to avoid duplicates
     const { data: existingEmails } = await supabase
       .from('profiles')
       .select('id')
@@ -43,23 +42,19 @@ Deno.serve(async (req) => {
 
     console.log(`Found ${existingUsers.size} existing test users`)
 
-    // Create 40 new users to ensure adequate coverage
-    // This will give us roughly:
-    // - 10 for Day Shift Early (4am-8am needs 7)
-    // - 12 for Day Shift (8am-4pm needs 8)
-    // - 10 for Swing Shift (4pm-10pm needs 6)
-    // - 8 for Graveyard (10pm-4am needs 6)
+    // Create 40 new users
     for (let i = 0; i < 40; i++) {
-      const firstName = firstNames[i % firstNames.length]
+      const firstName = `Test ${firstNames[i % firstNames.length]}`
       const lastName = lastNames[i % lastNames.length]
       const email = `test.${firstName.toLowerCase()}.${lastName.toLowerCase()}.${i}@example.com`
-      const role = i < 5 ? 'manager' : 'employee' // First 5 users are managers, rest are employees
+      const role = i < 5 ? 'manager' : 'employee'
 
       try {
+        // Create the user in auth.users
         const { data: { user }, error: createUserError } = await supabase.auth.admin.createUser({
           email,
           email_confirm: true,
-          password: 'password123', // For testing purposes only
+          password: 'password123',
           user_metadata: {
             first_name: firstName,
             last_name: lastName,
@@ -76,12 +71,29 @@ Deno.serve(async (req) => {
         }
 
         if (user) {
+          // Manually create the profile since the trigger might not work immediately
+          const { error: profileError } = await supabase
+            .from('profiles')
+            .insert([{
+              id: user.id,
+              first_name: firstName,
+              last_name: lastName,
+              role: role,
+              weekly_hours_limit: 40
+            }])
+
+          if (profileError) {
+            console.error(`Error creating profile for ${email}:`, profileError)
+            // Try to delete the auth user if profile creation failed
+            await supabase.auth.admin.deleteUser(user.id)
+            continue
+          }
+
           employees.push(user)
-          console.log(`Created user ${email}`)
+          console.log(`Created user and profile for ${email}`)
         }
       } catch (error) {
-        // Log the error but continue with other users
-        console.error(`Error creating user ${email}:`, error)
+        console.error(`Error processing user ${email}:`, error)
         continue
       }
     }
