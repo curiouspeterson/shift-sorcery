@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { addDays, format } from 'https://esm.sh/date-fns@2.30.0'
+import { SchedulingEngine } from '../../../src/lib/scheduling/SchedulingEngine.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -8,7 +8,6 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
@@ -21,7 +20,6 @@ serve(async (req) => {
       throw new Error('Missing required parameters')
     }
 
-    // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
     
@@ -32,6 +30,30 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseKey)
     console.log('Supabase client initialized')
 
+    // Fetch all required data
+    const [
+      { data: employees, error: employeesError },
+      { data: shifts, error: shiftsError },
+      { data: availability, error: availabilityError },
+      { data: coverage, error: coverageError },
+      { data: timeOff, error: timeOffError }
+    ] = await Promise.all([
+      supabase.from('profiles').select('*').eq('role', 'employee'),
+      supabase.from('shifts').select('*'),
+      supabase.from('employee_availability').select('*'),
+      supabase.from('coverage_requirements').select('*'),
+      supabase.from('time_off_requests')
+        .select('*')
+        .eq('status', 'approved')
+        .gte('end_date', weekStartDate)
+    ]);
+
+    if (employeesError) throw employeesError;
+    if (shiftsError) throw shiftsError;
+    if (availabilityError) throw availabilityError;
+    if (coverageError) throw coverageError;
+    if (timeOffError) throw timeOffError;
+
     // Create schedule record
     const { data: schedule, error: scheduleError } = await supabase
       .from('schedules')
@@ -41,102 +63,52 @@ serve(async (req) => {
         created_by: userId
       })
       .select()
-      .single()
+      .single();
 
-    if (scheduleError) throw scheduleError
-    console.log('Created schedule:', schedule)
+    if (scheduleError) throw scheduleError;
+    console.log('Created schedule:', schedule);
 
-    // Fetch employees
-    const { data: employees, error: employeesError } = await supabase
-      .from('profiles')
-      .select('*')
-      .order('first_name')
-
-    if (employeesError) throw employeesError
-    console.log(`Fetched ${employees.length} employees`)
-
-    // Fetch shifts
-    const { data: shifts, error: shiftsError } = await supabase
-      .from('shifts')
-      .select('*')
-      .order('start_time')
-
-    if (shiftsError) throw shiftsError
-    console.log(`Fetched ${shifts.length} shifts`)
-
-    // Create assignments for the week
-    const assignments = []
-    const startDate = new Date(weekStartDate)
-
-    // Helper function to shuffle array
-    const shuffleArray = (array: any[]) => {
-      for (let i = array.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [array[i], array[j]] = [array[j], array[i]];
-      }
-      return array;
-    }
-
-    // For each day of the week
-    for (let i = 0; i < 7; i++) {
-      const currentDate = format(addDays(startDate, i), 'yyyy-MM-dd')
-      const dailyAssignments = new Map() // Track assigned employees and their shifts for the day
-      
-      // Sort shifts by priority (early shifts first)
-      const sortedShifts = [...shifts].sort((a, b) => {
-        const aHour = parseInt(a.start_time.split(':')[0])
-        const bHour = parseInt(b.start_time.split(':')[0])
-        return aHour - bHour
-      })
-
-      // Distribute shifts among employees
-      for (const shift of sortedShifts) {
-        // Filter out employees who already have a shift this day
-        const availableEmployees = employees.filter(employee => 
-          !dailyAssignments.has(employee.id)
-        )
-
-        if (availableEmployees.length > 0) {
-          // Randomly select an available employee instead of taking the first one
-          const randomEmployees = shuffleArray([...availableEmployees])
-          const employee = randomEmployees[0]
-          
-          assignments.push({
-            schedule_id: schedule.id,
-            employee_id: employee.id,
-            shift_id: shift.id,
-            date: currentDate
-          })
-          
-          // Mark employee as assigned for this day
-          dailyAssignments.set(employee.id, shift.id)
-          console.log(`Assigned ${employee.first_name} to shift ${shift.name} on ${currentDate}`)
-        }
-      }
-    }
+    // Initialize scheduling engine
+    const engine = new SchedulingEngine();
+    
+    // Generate schedule
+    const result = await engine.generateSchedule(
+      {
+        employees,
+        shifts,
+        availability,
+        coverageRequirements: coverage,
+        timeOffRequests: timeOff
+      },
+      new Date(weekStartDate),
+      schedule.id
+    );
 
     // Save assignments
-    const { error: assignmentsError } = await supabase
-      .from('schedule_assignments')
-      .insert(assignments)
+    if (result.assignments.length > 0) {
+      const { error: assignmentsError } = await supabase
+        .from('schedule_assignments')
+        .insert(result.assignments);
 
-    if (assignmentsError) throw assignmentsError
-    console.log(`Created ${assignments.length} assignments`)
+      if (assignmentsError) throw assignmentsError;
+    }
 
     return new Response(
       JSON.stringify({
-        success: true,
+        success: result.success,
         scheduleId: schedule.id,
-        assignmentsCount: assignments.length
+        coverage: result.coverage,
+        messages: result.messages,
+        assignmentsCount: result.assignments.length
       }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200
       }
-    )
+    );
 
   } catch (error) {
-    console.error('Error:', error)
+    console.error('Error:', error);
     return new Response(
       JSON.stringify({ 
         error: error.message,
@@ -146,6 +118,6 @@ serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 400
       }
-    )
+    );
   }
-})
+});

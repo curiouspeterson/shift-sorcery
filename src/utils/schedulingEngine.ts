@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { format, startOfWeek } from "date-fns";
+import { toast } from "sonner";
 
 export async function generateScheduleForWeek(selectedDate: Date, userId: string) {
   console.log('🚀 Starting schedule generation process', {
@@ -47,7 +48,28 @@ export async function generateScheduleForWeek(selectedDate: Date, userId: string
       throw error;
     }
 
+    // Show coverage status in toast
+    if (data.coverage) {
+      Object.entries(data.coverage).forEach(([shiftType, status]: [string, any]) => {
+        const coveragePercent = (status.assigned / status.required) * 100;
+        if (coveragePercent < 100) {
+          toast.warning(`${shiftType}: ${status.assigned}/${status.required} staff (${coveragePercent.toFixed(1)}%)`);
+        }
+      });
+    }
+
+    if (data.messages && data.messages.length > 0) {
+      data.messages.forEach((message: string) => {
+        if (message.includes('not fully met')) {
+          toast.warning(message);
+        } else {
+          toast.info(message);
+        }
+      });
+    }
+
     console.log('✅ Schedule generation completed successfully', data);
+    return data;
   } catch (error) {
     console.error('❌ Error generating schedule:', error);
     throw error;
