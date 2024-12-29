@@ -4,11 +4,11 @@ export function getShiftType(startTime: string): string {
   const hour = parseInt(startTime.split(':')[0]);
   console.log(`🕒 Determining shift type for hour: ${hour}`);
   
-  // More nuanced shift type determination
+  // Enhanced shift type determination with overlap handling
   if (hour >= 4 && hour < 8) return "Day Shift Early";
   if (hour >= 8 && hour < 16) return "Day Shift";
   if (hour >= 16 && hour < 22) return "Swing Shift";
-  return "Graveyard"; // 22-4
+  return "Graveyard"; // 22-4 or overnight
 }
 
 function parseTime(timeStr: string): number {
@@ -16,10 +16,10 @@ function parseTime(timeStr: string): number {
   return hours * 60 + minutes;
 }
 
-function normalizeMinutes(minutes: number): number {
-  // Ensure we handle full 24-hour cycles correctly
-  while (minutes < 0) minutes += 24 * 60;
-  return minutes % (24 * 60);
+function normalizeMinutes(minutes: number, referenceTime: number = 0): number {
+  // Enhanced normalization that considers the reference time for proper overnight handling
+  while (minutes < referenceTime) minutes += 24 * 60;
+  return minutes;
 }
 
 function doesTimeRangeOverlap(
@@ -28,46 +28,49 @@ function doesTimeRangeOverlap(
   periodStart: number,
   periodEnd: number
 ): boolean {
-  // Convert all times to minutes since midnight for consistent comparison
-  shiftStart = normalizeMinutes(shiftStart);
-  shiftEnd = normalizeMinutes(shiftEnd);
-  periodStart = normalizeMinutes(periodStart);
-  periodEnd = normalizeMinutes(periodEnd);
-
-  console.log(`⏰ Time range check:
+  console.log(`\n⏰ Analyzing time overlap:
     Shift: ${Math.floor(shiftStart/60)}:${String(shiftStart%60).padStart(2, '0')} - ${Math.floor(shiftEnd/60)}:${String(shiftEnd%60).padStart(2, '0')}
-    Period: ${Math.floor(periodStart/60)}:${String(periodStart%60).padStart(2, '0')} - ${Math.floor(periodEnd/60)}:${String(periodEnd%60).padStart(2, '0')}
-    Original shift end: ${shiftEnd <= shiftStart ? 'Next day' : 'Same day'}
-    Original period end: ${periodEnd <= periodStart ? 'Next day' : 'Same day'}`);
+    Period: ${Math.floor(periodStart/60)}:${String(periodStart%60).padStart(2, '0')} - ${Math.floor(periodEnd/60)}:${String(periodEnd%60).padStart(2, '0')}`);
 
-  // Handle overnight shifts
-  if (shiftEnd <= shiftStart) {
-    shiftEnd += 24 * 60;
-    console.log('🌙 Overnight shift detected, adjusted end time:', Math.floor(shiftEnd/60));
-  }
+  // Normalize all times relative to period start
+  const normalizedShiftStart = normalizeMinutes(shiftStart, periodStart);
+  const normalizedShiftEnd = normalizeMinutes(shiftEnd, normalizedShiftStart);
+  const normalizedPeriodEnd = normalizeMinutes(periodEnd, periodStart);
 
-  // Handle overnight periods
-  if (periodEnd <= periodStart) {
-    periodEnd += 24 * 60;
-    console.log('🌙 Overnight period detected, adjusted end time:', Math.floor(periodEnd/60));
-  }
+  console.log(`Normalized times (in minutes from reference):
+    Shift: ${normalizedShiftStart} - ${normalizedShiftEnd}
+    Period: ${periodStart} - ${normalizedPeriodEnd}`);
 
-  // Check if the ranges overlap
-  const overlaps = (shiftStart < periodEnd && shiftEnd > periodStart);
+  // Enhanced overlap detection
+  const overlaps = (
+    (normalizedShiftStart <= normalizedPeriodEnd && normalizedShiftEnd >= periodStart) ||
+    (normalizedShiftStart <= periodStart && normalizedShiftEnd >= periodStart)
+  );
+
   console.log(`${overlaps ? '✅' : '❌'} Overlap result: ${overlaps}`);
-  
   return overlaps;
 }
 
 function doesShiftOverlapPeriod(shift: any, periodStartHour: number, periodEndHour: number): boolean {
-  console.log(`\n🔍 Checking shift overlap for ${shift.name} (${getShiftDuration(shift)} hours):`);
+  console.log(`\n🔍 Checking shift overlap for ${shift.name}:`);
   console.log(`Shift time: ${shift.start_time} - ${shift.end_time}`);
-  console.log(`Period: ${periodStartHour}:00 - ${periodEndHour}:00`);
 
   const shiftStart = parseTime(shift.start_time);
-  const shiftEnd = parseTime(shift.end_time);
+  let shiftEnd = parseTime(shift.end_time);
   const periodStart = periodStartHour * 60;
-  const periodEnd = periodEndHour * 60;
+  let periodEnd = periodEndHour * 60;
+
+  // Handle overnight periods
+  if (periodEndHour < periodStartHour) {
+    periodEnd += 24 * 60;
+    console.log('🌙 Overnight period detected');
+  }
+
+  // Handle overnight shifts
+  if (shiftEnd <= shiftStart) {
+    shiftEnd += 24 * 60;
+    console.log('🌙 Overnight shift detected');
+  }
 
   return doesTimeRangeOverlap(shiftStart, shiftEnd, periodStart, periodEnd);
 }
@@ -77,11 +80,17 @@ export function countStaffByShiftType(assignments: any[], shiftType: string): nu
   const uniqueEmployees = new Set();
   
   assignments.forEach(assignment => {
-    console.log(`\n👤 Processing ${assignment.employee?.first_name} ${assignment.employee?.last_name}`);
-    console.log(`Current shift: ${assignment.shift.start_time} - ${assignment.shift.end_time}`);
+    if (!assignment.employee) {
+      console.warn('⚠️ Assignment missing employee data:', assignment);
+      return;
+    }
+
+    console.log(`\n👤 Analyzing ${assignment.employee.first_name} ${assignment.employee.last_name}`);
+    console.log(`Shift: ${assignment.shift.start_time} - ${assignment.shift.end_time}`);
+    
     let overlaps = false;
     
-    // Check overlap based on shift type
+    // Enhanced overlap checking based on shift type
     switch(shiftType) {
       case "Day Shift Early":
         overlaps = doesShiftOverlapPeriod(assignment.shift, 4, 8);
@@ -93,14 +102,14 @@ export function countStaffByShiftType(assignments: any[], shiftType: string): nu
         overlaps = doesShiftOverlapPeriod(assignment.shift, 16, 22);
         break;
       case "Graveyard":
-        // For graveyard, we need to check both ends of the day
-        overlaps = doesShiftOverlapPeriod(assignment.shift, 22, 28); // 28 represents 4AM next day
+        // Special handling for graveyard shift that crosses midnight
+        overlaps = doesShiftOverlapPeriod(assignment.shift, 22, 4);
         break;
     }
     
     if (overlaps) {
       if (uniqueEmployees.has(assignment.employee_id)) {
-        console.log('⚠️ Warning: Employee already counted for this shift type');
+        console.log('⚠️ Employee already counted for this shift type');
       } else {
         uniqueEmployees.add(assignment.employee_id);
         console.log(`✅ Employee counted for ${shiftType}`);
@@ -113,45 +122,6 @@ export function countStaffByShiftType(assignments: any[], shiftType: string): nu
   console.log(`\n📈 Final count for ${shiftType}: ${uniqueEmployees.size} unique employees`);
   console.log('🏷️ Employee IDs:', Array.from(uniqueEmployees));
   return uniqueEmployees.size;
-}
-
-export function getRequiredStaffForShiftType(coverageRequirements: any[], shiftType: string): number {
-  console.log(`\n🎯 Getting required staff for ${shiftType}`);
-  
-  if (!coverageRequirements) {
-    console.log('⚠️ No coverage requirements provided');
-    return 0;
-  }
-
-  const requirement = coverageRequirements.find(req => {
-    const reqStartHour = parseInt(req.start_time.split(':')[0]);
-    console.log(`Checking requirement starting at ${reqStartHour}:00`);
-    
-    let matches = false;
-    switch (shiftType) {
-      case "Day Shift Early":
-        matches = reqStartHour >= 4 && reqStartHour < 8;
-        break;
-      case "Day Shift":
-        matches = reqStartHour >= 8 && reqStartHour < 16;
-        break;
-      case "Swing Shift":
-        matches = reqStartHour >= 16 && reqStartHour < 22;
-        break;
-      case "Graveyard":
-        matches = reqStartHour >= 22 || reqStartHour < 4;
-        break;
-    }
-    
-    if (matches) {
-      console.log(`✅ Found matching requirement: ${req.min_employees} employees needed`);
-    }
-    return matches;
-  });
-
-  const result = requirement?.min_employees || 0;
-  console.log(`📊 Required staff for ${shiftType}: ${result}`);
-  return result;
 }
 
 export function getShiftDuration(shift: Shift): number {
