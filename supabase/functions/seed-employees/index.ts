@@ -8,17 +8,12 @@ const supabase = createClient(supabaseUrl, serviceRoleKey)
 
 const firstNames = [
   'James', 'John', 'Robert', 'Michael', 'William', 'David', 'Richard', 'Joseph', 'Thomas', 'Charles',
-  'Mary', 'Patricia', 'Jennifer', 'Linda', 'Elizabeth', 'Barbara', 'Susan', 'Jessica', 'Sarah', 'Karen',
-  'Christopher', 'Daniel', 'Paul', 'Mark', 'Donald', 'George', 'Kenneth', 'Steven', 'Edward', 'Brian',
-  'Margaret', 'Lisa', 'Nancy', 'Betty', 'Sandra', 'Ashley', 'Dorothy', 'Kimberly', 'Emily', 'Donna',
-  'Anthony', 'Kevin', 'Jason', 'Matthew', 'Gary', 'Timothy', 'Jose', 'Larry', 'Jeffrey', 'Frank'
+  'Mary', 'Patricia', 'Jennifer', 'Linda', 'Elizabeth', 'Barbara', 'Susan', 'Jessica', 'Sarah', 'Karen'
 ]
 
 const lastNames = [
   'Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis', 'Rodriguez', 'Martinez',
-  'Anderson', 'Taylor', 'Thomas', 'Moore', 'Jackson', 'Martin', 'Lee', 'Thompson', 'White', 'Harris',
-  'Clark', 'Lewis', 'Robinson', 'Walker', 'Hall', 'Young', 'Allen', 'King', 'Wright', 'Scott',
-  'Green', 'Baker', 'Adams', 'Nelson', 'Hill', 'Campbell', 'Mitchell', 'Roberts', 'Carter', 'Phillips'
+  'Anderson', 'Taylor', 'Thomas', 'Moore', 'Jackson', 'Martin', 'Lee', 'Thompson', 'White', 'Harris'
 ]
 
 Deno.serve(async (req) => {
@@ -42,8 +37,8 @@ Deno.serve(async (req) => {
 
     console.log(`Found ${existingUsers.size} existing test users`)
 
-    // Create 40 new users
-    for (let i = 0; i < 40; i++) {
+    // Create 20 new users (reduced from 40 to avoid timeouts)
+    for (let i = 0; i < 20; i++) {
       const firstName = `Test ${firstNames[i % firstNames.length]}`
       const lastName = lastNames[i % lastNames.length]
       const email = `test.${firstName.toLowerCase()}.${lastName.toLowerCase()}.${i}@example.com`
@@ -63,11 +58,8 @@ Deno.serve(async (req) => {
         })
 
         if (createUserError) {
-          if (createUserError.message.includes('already been registered')) {
-            console.log(`Skipping ${email} - already exists`)
-            continue
-          }
-          throw createUserError
+          console.error(`Error creating user ${email}:`, createUserError)
+          continue
         }
 
         if (user) {
@@ -100,7 +92,7 @@ Deno.serve(async (req) => {
 
     return new Response(
       JSON.stringify({ 
-        message: `Successfully processed 40 employees. Created ${employees.length} new users.`,
+        message: `Successfully processed 20 employees. Created ${employees.length} new users.`,
         created: employees.length 
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
