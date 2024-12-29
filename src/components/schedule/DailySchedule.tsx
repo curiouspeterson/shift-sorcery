@@ -71,6 +71,23 @@ export function DailySchedule({
         <div className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div className="space-y-4">
+              <h3 className="text-base md:text-lg font-medium">Coverage Requirements</h3>
+              <div className="space-y-3">
+                {coverageRequirements.map(requirement => (
+                  <CoverageRequirementTracker
+                    key={requirement.id}
+                    requirement={requirement}
+                    assignments={dayAssignments}
+                  />
+                ))}
+                {!coverageRequirements.length && (
+                  <p className="text-sm text-muted-foreground">
+                    No coverage requirements defined
+                  </p>
+                )}
+              </div>
+            </div>
+            <div className="space-y-4">
               <h3 className="text-base md:text-lg font-medium">Shift Assignments</h3>
               <div className="space-y-3">
                 {shifts?.map(shift => (
@@ -85,23 +102,6 @@ export function DailySchedule({
                 {!shifts?.length && (
                   <p className="text-sm text-muted-foreground">
                     No shifts configured for this day
-                  </p>
-                )}
-              </div>
-            </div>
-            <div className="space-y-4">
-              <h3 className="text-base md:text-lg font-medium">Coverage Requirements</h3>
-              <div className="space-y-3">
-                {coverageRequirements.map(requirement => (
-                  <CoverageRequirementTracker
-                    key={requirement.id}
-                    requirement={requirement}
-                    assignments={dayAssignments}
-                  />
-                ))}
-                {!coverageRequirements.length && (
-                  <p className="text-sm text-muted-foreground">
-                    No coverage requirements defined
                   </p>
                 )}
               </div>
