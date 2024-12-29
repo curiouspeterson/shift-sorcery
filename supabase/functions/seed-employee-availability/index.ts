@@ -6,27 +6,31 @@ const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
 const supabase = createClient(supabaseUrl, serviceRoleKey)
 
-// Shift patterns for different types of schedules
+// Updated shift patterns to ensure better coverage
 const SHIFT_PATTERNS = {
   EARLY: {
-    days: 4,
-    preferredShiftDuration: 10,
-    startHourRange: [4, 6]
+    days: 5,
+    minEmployees: 8,
+    startHourRange: [4, 6],
+    percentage: 0.25 // 25% of workforce
   },
   DAY: {
-    days: 4,
-    preferredShiftDuration: 8,
-    startHourRange: [7, 9]
+    days: 5,
+    minEmployees: 10,
+    startHourRange: [7, 9],
+    percentage: 0.35 // 35% of workforce
   },
   SWING: {
-    days: 4,
-    preferredShiftDuration: 8,
-    startHourRange: [14, 16]
+    days: 5,
+    minEmployees: 7,
+    startHourRange: [14, 16],
+    percentage: 0.25 // 25% of workforce
   },
   GRAVEYARD: {
-    days: 3,
-    preferredShiftDuration: 12,
-    startHourRange: [20, 22]
+    days: 4,
+    minEmployees: 6,
+    startHourRange: [20, 22],
+    percentage: 0.15 // 15% of workforce
   }
 }
 
@@ -59,14 +63,11 @@ Deno.serve(async (req) => {
     const { data: allShifts, error: shiftsError } = await supabase
       .from('shifts')
       .select('*')
+      .order('start_time')
 
     if (shiftsError || !allShifts) {
       console.error('Error fetching shifts:', shiftsError)
       throw shiftsError
-    }
-
-    if (allShifts.length === 0) {
-      throw new Error('No shifts found. Please create shifts first.')
     }
 
     console.log(`Found ${allShifts.length} shifts`)
@@ -84,37 +85,71 @@ Deno.serve(async (req) => {
 
     console.log('Cleared existing availability entries')
 
-    // Create availability entries
-    const availabilityEntries = []
-    const patterns = Object.values(SHIFT_PATTERNS)
-    
-    // Distribute employees evenly across shift patterns
-    employees.forEach((employee, index) => {
-      const pattern = patterns[index % patterns.length]
-      const startDay = Math.floor(Math.random() * (7 - pattern.days))
-      
-      // Find appropriate shifts for this pattern
-      const appropriateShifts = allShifts.filter(shift => {
-        const startHour = parseInt(shift.start_time.split(':')[0])
-        return startHour >= pattern.startHourRange[0] && 
-               startHour <= pattern.startHourRange[1]
+    // Group shifts by type
+    const shiftsByType = {
+      'Day Shift Early': allShifts.filter(s => {
+        const hour = parseInt(s.start_time.split(':')[0])
+        return hour >= 4 && hour < 8
+      }),
+      'Day Shift': allShifts.filter(s => {
+        const hour = parseInt(s.start_time.split(':')[0])
+        return hour >= 8 && hour < 16
+      }),
+      'Swing Shift': allShifts.filter(s => {
+        const hour = parseInt(s.start_time.split(':')[0])
+        return hour >= 16 && hour < 22
+      }),
+      'Graveyard': allShifts.filter(s => {
+        const hour = parseInt(s.start_time.split(':')[0])
+        return hour >= 22 || hour < 4
       })
+    }
 
-      if (appropriateShifts.length === 0) {
-        console.log(`No appropriate shifts found for pattern starting at ${pattern.startHourRange[0]}-${pattern.startHourRange[1]}`)
+    // Calculate employee distribution
+    const employeeGroups = {
+      EARLY: employees.slice(0, Math.floor(employees.length * SHIFT_PATTERNS.EARLY.percentage)),
+      DAY: employees.slice(
+        Math.floor(employees.length * SHIFT_PATTERNS.EARLY.percentage),
+        Math.floor(employees.length * (SHIFT_PATTERNS.EARLY.percentage + SHIFT_PATTERNS.DAY.percentage))
+      ),
+      SWING: employees.slice(
+        Math.floor(employees.length * (SHIFT_PATTERNS.EARLY.percentage + SHIFT_PATTERNS.DAY.percentage)),
+        Math.floor(employees.length * (SHIFT_PATTERNS.EARLY.percentage + SHIFT_PATTERNS.DAY.percentage + SHIFT_PATTERNS.SWING.percentage))
+      ),
+      GRAVEYARD: employees.slice(
+        Math.floor(employees.length * (SHIFT_PATTERNS.EARLY.percentage + SHIFT_PATTERNS.DAY.percentage + SHIFT_PATTERNS.SWING.percentage))
+      )
+    }
+
+    const availabilityEntries = []
+
+    // Create availability entries for each shift pattern
+    Object.entries(employeeGroups).forEach(([patternKey, groupEmployees]) => {
+      const pattern = SHIFT_PATTERNS[patternKey as keyof typeof SHIFT_PATTERNS]
+      const shiftType = patternKey === 'EARLY' ? 'Day Shift Early' :
+                       patternKey === 'DAY' ? 'Day Shift' :
+                       patternKey === 'SWING' ? 'Swing Shift' : 'Graveyard'
+      
+      const shifts = shiftsByType[shiftType]
+      if (!shifts.length) {
+        console.log(`No shifts found for pattern ${patternKey}`)
         return
       }
 
-      const selectedShift = appropriateShifts[Math.floor(Math.random() * appropriateShifts.length)]
+      groupEmployees.forEach((employee, index) => {
+        // Rotate start days to ensure coverage throughout the week
+        const startDay = index % (7 - pattern.days + 1)
+        const selectedShift = shifts[index % shifts.length]
 
-      // Add availability for consecutive days based on pattern
-      for (let i = 0; i < pattern.days; i++) {
-        availabilityEntries.push({
-          employee_id: employee.id,
-          day_of_week: (startDay + i) % 7,
-          shift_id: selectedShift.id
-        })
-      }
+        // Add availability for consecutive days
+        for (let i = 0; i < pattern.days; i++) {
+          availabilityEntries.push({
+            employee_id: employee.id,
+            day_of_week: (startDay + i) % 7,
+            shift_id: selectedShift.id
+          })
+        }
+      })
     })
 
     console.log(`Preparing to insert ${availabilityEntries.length} availability entries`)
@@ -137,7 +172,13 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         message: `Successfully added availability for ${employees.length} employees`,
-        totalEntries: availabilityEntries.length
+        totalEntries: availabilityEntries.length,
+        distributionSummary: {
+          early: employeeGroups.EARLY.length,
+          day: employeeGroups.DAY.length,
+          swing: employeeGroups.SWING.length,
+          graveyard: employeeGroups.GRAVEYARD.length
+        }
       }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
