@@ -1,4 +1,4 @@
-import { format } from "date-fns";
+import { Shift, ShiftType, CoverageRequirement } from './types.ts';
 
 export function getShiftType(startTime: string): string {
   const hour = parseInt(startTime.split(':')[0]);
@@ -9,53 +9,70 @@ export function getShiftType(startTime: string): string {
   return "Graveyard"; // 22-4
 }
 
-function getShiftTimeRange(startTime: string, endTime: string): { start: number; end: number } {
-  let startHour = parseInt(startTime.split(':')[0]);
-  let endHour = parseInt(endTime.split(':')[0]);
-  
-  // Adjust end hour for overnight shifts
-  if (endHour <= startHour) {
-    endHour += 24;
-  }
-  
-  return { start: startHour, end: endHour };
+function parseTime(timeStr: string): number {
+  const [hours, minutes] = timeStr.split(':').map(Number);
+  return hours * 60 + minutes;
 }
 
-function doesShiftOverlapPeriod(startTime: string, endTime: string, periodStart: number, periodEnd: number): boolean {
-  const range = getShiftTimeRange(startTime, endTime);
-  
-  // Handle overnight period (e.g., Graveyard 22-4)
-  if (periodEnd < periodStart) {
-    // Check if shift overlaps either part of the overnight period
-    return (range.start >= periodStart && range.start < 24) || 
-           (range.start >= 0 && range.start < periodEnd) ||
-           (range.end > periodStart && range.end <= 24) ||
-           (range.end > 0 && range.end <= periodEnd);
+function normalizeMinutes(minutes: number): number {
+  while (minutes < 0) minutes += 24 * 60;
+  return minutes % (24 * 60);
+}
+
+function doesTimeRangeOverlap(
+  shiftStart: number,
+  shiftEnd: number,
+  periodStart: number,
+  periodEnd: number
+): boolean {
+  // Normalize all times to minutes since midnight
+  shiftStart = normalizeMinutes(shiftStart);
+  shiftEnd = normalizeMinutes(shiftEnd);
+  periodStart = normalizeMinutes(periodStart);
+  periodEnd = normalizeMinutes(periodEnd);
+
+  // Handle overnight shifts
+  if (shiftEnd <= shiftStart) {
+    shiftEnd += 24 * 60;
   }
-  
-  // For regular periods, check if shift overlaps at all
-  return (range.start < periodEnd && range.end > periodStart);
+
+  // Handle overnight periods
+  if (periodEnd <= periodStart) {
+    periodEnd += 24 * 60;
+  }
+
+  // Check if any part of the shift overlaps with the period
+  return (shiftStart < periodEnd && shiftEnd > periodStart);
+}
+
+function doesShiftOverlapPeriod(shift: any, periodStartHour: number, periodEndHour: number): boolean {
+  const shiftStart = parseTime(shift.start_time);
+  const shiftEnd = parseTime(shift.end_time);
+  const periodStart = periodStartHour * 60;
+  const periodEnd = periodEndHour * 60;
+
+  return doesTimeRangeOverlap(shiftStart, shiftEnd, periodStart, periodEnd);
 }
 
 export function countStaffByShiftType(assignments: any[], shiftType: string): number {
   const uniqueEmployees = new Set();
   
   assignments.forEach(assignment => {
-    const { start_time, end_time } = assignment.shift;
     let overlaps = false;
     
     switch(shiftType) {
       case "Day Shift Early":
-        overlaps = doesShiftOverlapPeriod(start_time, end_time, 4, 8);
+        overlaps = doesShiftOverlapPeriod(assignment.shift, 4, 8);
         break;
       case "Day Shift":
-        overlaps = doesShiftOverlapPeriod(start_time, end_time, 8, 16);
+        overlaps = doesShiftOverlapPeriod(assignment.shift, 8, 16);
         break;
       case "Swing Shift":
-        overlaps = doesShiftOverlapPeriod(start_time, end_time, 16, 22);
+        overlaps = doesShiftOverlapPeriod(assignment.shift, 16, 22);
         break;
       case "Graveyard":
-        overlaps = doesShiftOverlapPeriod(start_time, end_time, 22, 4);
+        // Check both parts of the overnight period (22-24 and 0-4)
+        overlaps = doesShiftOverlapPeriod(assignment.shift, 22, 28); // 28 represents 4AM next day
         break;
     }
     
@@ -88,4 +105,25 @@ export function getRequiredStaffForShiftType(coverageRequirements: any[], shiftT
   });
 
   return requirement?.min_employees || 0;
+}
+
+export function getShiftDuration(shift: Shift): number {
+  const start = parseTime(shift.start_time);
+  let end = parseTime(shift.end_time);
+  
+  // Handle overnight shifts
+  if (end <= start) {
+    end += 24 * 60;
+  }
+  
+  return (end - start) / 60;
+}
+
+export function isShiftCompatible(
+  employeePattern: ShiftType | undefined,
+  shift: Shift,
+  isShortShift: boolean
+): boolean {
+  if (!employeePattern || !isShortShift) return true;
+  return getShiftType(shift.start_time) === employeePattern;
 }
