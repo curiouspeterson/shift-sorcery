@@ -73,6 +73,7 @@ export function DailySchedule({
               return max;
             }, 0) || 0}
             date={formattedDate}
+            scheduleId={scheduleData?.id}
           />
         ))}
       </div>
