@@ -15,6 +15,12 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
   useEffect(() => {
     let mounted = true;
 
+    const redirectToLogin = async () => {
+      console.log("No session, redirecting to login page");
+      await clearAuthData();
+      navigate("/");
+    };
+
     const checkAuth = async () => {
       try {
         console.log('Checking auth session...');
@@ -26,11 +32,9 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
         }
 
         if (!session) {
-          console.log("No session found, redirecting to login");
           if (mounted) {
             setIsLoading(false);
-            await clearAuthData();
-            navigate("/");
+            redirectToLogin();
           }
           return;
         }
@@ -46,15 +50,14 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
         
         setAuthError(error.message);
         setIsLoading(false);
-        await clearAuthData();
-        navigate("/");
+        redirectToLogin();
         
         toast.error("Authentication error", {
           description: error.message
         });
       }
     };
-    
+
     // Immediate check
     checkAuth();
 
@@ -62,8 +65,7 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('Auth state changed:', event);
       if (event === 'SIGNED_OUT' || !session) {
-        await clearAuthData();
-        navigate("/");
+        redirectToLogin();
       }
     });
 
@@ -73,6 +75,7 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
     };
   }, [navigate]);
 
+  // Show loading state only briefly
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen">
