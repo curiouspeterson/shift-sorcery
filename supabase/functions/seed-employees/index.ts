@@ -47,12 +47,17 @@ function generateUniqueNames(count: number) {
 }
 
 Deno.serve(async (req) => {
-  try {
-    // Handle CORS preflight requests
-    if (req.method === 'OPTIONS') {
-      return new Response('ok', { headers: corsHeaders })
-    }
+  // Always handle CORS preflight first
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { 
+      headers: {
+        ...corsHeaders,
+        'Access-Control-Max-Age': '86400',
+      }
+    })
+  }
 
+  try {
     if (req.method !== 'POST') {
       return new Response(
         JSON.stringify({ error: 'Method not allowed' }), 
