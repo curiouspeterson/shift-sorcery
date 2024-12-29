@@ -78,6 +78,8 @@ export function DailySchedule({
                     key={requirement.id}
                     requirement={requirement}
                     assignments={dayAssignments}
+                    date={formattedDate}
+                    scheduleId={scheduleData?.id}
                   />
                 ))}
                 {!coverageRequirements.length && (

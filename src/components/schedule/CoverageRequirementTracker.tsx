@@ -1,17 +1,26 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import { getShiftType } from "@/utils/shiftUtils";
+import { UserPlus } from "lucide-react";
+import { useState } from "react";
+import { AssignEmployeeDialog } from "./AssignEmployeeDialog";
 
 interface CoverageRequirementTrackerProps {
   requirement: any;
   assignments: any[];
+  date: string;
+  scheduleId?: string;
 }
 
 export function CoverageRequirementTracker({
   requirement,
-  assignments
+  assignments,
+  date,
+  scheduleId
 }: CoverageRequirementTrackerProps) {
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const shiftType = getShiftType(requirement.start_time);
   const assignedCount = assignments.filter(
     a => getShiftType(a.shift.start_time) === shiftType
@@ -25,10 +34,20 @@ export function CoverageRequirementTracker({
   return (
     <Card className="mb-4">
       <CardHeader>
-        <CardTitle className="text-lg">
-          Coverage for {format(new Date(`2000-01-01T${requirement.start_time}`), 'h:mm a')} - 
-          {format(new Date(`2000-01-01T${requirement.end_time}`), 'h:mm a')}
-        </CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-lg">
+            Coverage for {format(new Date(`2000-01-01T${requirement.start_time}`), 'h:mm a')} - 
+            {format(new Date(`2000-01-01T${requirement.end_time}`), 'h:mm a')}
+          </CardTitle>
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => setIsDialogOpen(true)}
+          >
+            <UserPlus className="h-4 w-4 mr-2" />
+            Assign Employee
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
@@ -43,6 +62,15 @@ export function CoverageRequirementTracker({
           </div>
         </div>
       </CardContent>
+
+      <AssignEmployeeDialog
+        isOpen={isDialogOpen}
+        onOpenChange={setIsDialogOpen}
+        shiftId={requirement.id}
+        date={date}
+        scheduleId={scheduleId}
+        shiftType={shiftType}
+      />
     </Card>
   );
 }
