@@ -38,7 +38,8 @@ export class ShiftDistributor {
         shift,
         availability,
         dayOfWeek,
-        assignments
+        assignments,
+        shifts
       );
 
       console.log(`👥 Found ${availableEmployees.length} available employees for ${shift.name}`);
@@ -46,8 +47,8 @@ export class ShiftDistributor {
       if (availableEmployees.length > 0) {
         // Sort employees by their weekly hours (ascending) to ensure fair distribution
         const sortedEmployees = [...availableEmployees].sort((a, b) => {
-          const aHours = this.getEmployeeWeeklyHours(a.id, assignments) || 0;
-          const bHours = this.getEmployeeWeeklyHours(b.id, assignments) || 0;
+          const aHours = this.getEmployeeWeeklyHours(a.id, assignments, shifts) || 0;
+          const bHours = this.getEmployeeWeeklyHours(b.id, assignments, shifts) || 0;
           return aHours - bHours;
         });
 
@@ -74,7 +75,8 @@ export class ShiftDistributor {
     shift: Shift,
     availability: EmployeeAvailability[],
     dayOfWeek: number,
-    existingAssignments: ScheduleAssignment[]
+    existingAssignments: ScheduleAssignment[],
+    shifts: Shift[]
   ): Employee[] {
     return employees.filter(employee => {
       // Check if employee is already assigned for this day
@@ -87,7 +89,7 @@ export class ShiftDistributor {
       }
 
       // Check weekly hours limit
-      const currentHours = this.getEmployeeWeeklyHours(employee.id, existingAssignments);
+      const currentHours = this.getEmployeeWeeklyHours(employee.id, existingAssignments, shifts);
       const shiftHours = this.getShiftHours(shift);
       if (currentHours + shiftHours > employee.weekly_hours_limit) {
         console.log(`👤 ${employee.first_name} would exceed weekly hours limit`);
@@ -145,10 +147,18 @@ export class ShiftDistributor {
     return hours * 60 + minutes;
   }
 
-  private getEmployeeWeeklyHours(employeeId: string, assignments: ScheduleAssignment[]): number {
+  private getEmployeeWeeklyHours(
+    employeeId: string, 
+    assignments: ScheduleAssignment[],
+    shifts: Shift[]
+  ): number {
     return assignments
       .filter(a => a.employee_id === employeeId)
-      .reduce((total, assignment) => total + this.getShiftHours(assignment), 0);
+      .reduce((total, assignment) => {
+        const shift = shifts.find(s => s.id === assignment.shift_id);
+        if (!shift) return total;
+        return total + this.getShiftHours(shift);
+      }, 0);
   }
 
   private getShiftHours(shift: Shift): number {
