@@ -6,6 +6,8 @@ import { getShiftType } from "@/utils/shiftUtils";
 import { UserPlus } from "lucide-react";
 import { useState } from "react";
 import { AssignEmployeeDialog } from "./AssignEmployeeDialog";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 interface CoverageRequirementTrackerProps {
   requirement: any;
@@ -26,6 +28,25 @@ export function CoverageRequirementTracker({
     a => getShiftType(a.shift.start_time) === shiftType
   ).length;
   
+  const { data: matchingShift } = useQuery({
+    queryKey: ['shift-by-time', requirement.start_time, requirement.end_time],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('shifts')
+        .select('*')
+        .eq('start_time', requirement.start_time)
+        .eq('end_time', requirement.end_time)
+        .maybeSingle();
+
+      if (error) {
+        console.error('Error fetching matching shift:', error);
+        return null;
+      }
+
+      return data;
+    }
+  });
+  
   const coveragePercentage = Math.min(
     (assignedCount / requirement.min_employees) * 100,
     100
@@ -39,14 +60,16 @@ export function CoverageRequirementTracker({
             Coverage for {format(new Date(`2000-01-01T${requirement.start_time}`), 'h:mm a')} - 
             {format(new Date(`2000-01-01T${requirement.end_time}`), 'h:mm a')}
           </CardTitle>
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={() => setIsDialogOpen(true)}
-          >
-            <UserPlus className="h-4 w-4 mr-2" />
-            Assign Employee
-          </Button>
+          {matchingShift && (
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => setIsDialogOpen(true)}
+            >
+              <UserPlus className="h-4 w-4 mr-2" />
+              Assign Employee
+            </Button>
+          )}
         </div>
       </CardHeader>
       <CardContent>
@@ -63,14 +86,16 @@ export function CoverageRequirementTracker({
         </div>
       </CardContent>
 
-      <AssignEmployeeDialog
-        isOpen={isDialogOpen}
-        onOpenChange={setIsDialogOpen}
-        shiftId={requirement.id}
-        date={date}
-        scheduleId={scheduleId}
-        shiftType={shiftType}
-      />
+      {matchingShift && (
+        <AssignEmployeeDialog
+          isOpen={isDialogOpen}
+          onOpenChange={setIsDialogOpen}
+          shiftId={matchingShift.id}
+          date={date}
+          scheduleId={scheduleId}
+          shiftType={shiftType}
+        />
+      )}
     </Card>
   );
 }
