@@ -1,5 +1,5 @@
 import { Shift, ShiftType, CoverageRequirement } from '@/types';
-import { parseTime, doesTimeRangeOverlap } from './timeUtils';
+import { parseTime, doesTimeRangeOverlap } from '@/utils/timeUtils';
 
 export function getShiftDuration(shift: Shift): number {
   const start = parseTime(shift.start_time);
@@ -45,7 +45,7 @@ export function countStaffByShiftType(assignments: any[], shiftType: ShiftType):
   return count;
 }
 
-export function getRequiredStaffForShiftType(requirements: CoverageRequirement[], shiftType: ShiftType): number {
+export function getRequiredStaffForShiftType(requirements: any[], shiftType: ShiftType): number {
   console.log(`\n🎯 Getting required staff for ${shiftType}`);
   const timeRange = getShiftTimeRange(shiftType);
   
