@@ -40,7 +40,7 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
           throw userError;
         }
 
-        // Check if user has a profile with retry logic
+        // Check if user has a profile
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('*')
@@ -49,18 +49,34 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
 
         if (profileError) {
           console.error("Profile error:", profileError);
-          if (retryCount < MAX_RETRIES) {
-            setRetryCount(prev => prev + 1);
-            retryTimeout = setTimeout(checkAuth, 1000 * (retryCount + 1));
-            return;
-          }
-          throw new Error("Unable to load user profile after multiple attempts");
+          throw new Error("Error checking user profile");
         }
 
         if (!profile) {
-          console.error("No profile found for user");
-          setAuthError("Profile not found. Please contact support.");
-          return;
+          // Try to create profile if it doesn't exist
+          const { data: userData } = await supabase.auth.getUser();
+          if (userData.user) {
+            const { error: insertError } = await supabase
+              .from('profiles')
+              .insert([{
+                id: userData.user.id,
+                first_name: userData.user.user_metadata.first_name || '',
+                last_name: userData.user.user_metadata.last_name || '',
+                role: userData.user.user_metadata.role || 'employee'
+              }]);
+
+            if (insertError) {
+              console.error("Error creating profile:", insertError);
+              if (retryCount < MAX_RETRIES) {
+                setRetryCount(prev => prev + 1);
+                retryTimeout = setTimeout(checkAuth, 1000 * (retryCount + 1));
+                return;
+              }
+              throw new Error("Unable to create user profile. Please contact support.");
+            }
+          } else {
+            throw new Error("Unable to retrieve user data. Please try logging in again.");
+          }
         }
 
         if (mounted) {
@@ -78,7 +94,7 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
             navigate("/");
           } else {
             toast.error("Authentication error", {
-              description: "Please sign in again"
+              description: error.message
             });
             navigate("/");
           }
