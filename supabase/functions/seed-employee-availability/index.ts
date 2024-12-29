@@ -147,8 +147,8 @@ Deno.serve(async (req) => {
             employee_id: employee.id,
             day_of_week: (startDay + i) % 7,
             shift_id: selectedShift.id,
-            start_time: selectedShift.start_time,  // Add start_time from the shift
-            end_time: selectedShift.end_time      // Add end_time from the shift
+            start_time: selectedShift.start_time,
+            end_time: selectedShift.end_time
           })
         }
       })
