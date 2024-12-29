@@ -14,16 +14,18 @@ export async function getEmployeeStats(weekDate: Date) {
     
     // Get employees with shifts for the specified week
     const weekStart = format(startOfWeek(weekDate), 'yyyy-MM-dd');
-    const { count: assignedCount, error: assignmentsError } = await supabase
+    const { data: assignments, error: assignmentsError } = await supabase
       .from('schedule_assignments')
-      .select('*', { count: 'exact' })
+      .select('employee_id')
       .eq('date', weekStart);
     
     if (assignmentsError) throw assignmentsError;
+
+    const uniqueEmployeesWithShifts = new Set(assignments?.map(a => a.employee_id) || []);
     
     return {
       totalEmployees: employees?.length || 0,
-      employeesWithShifts: assignedCount || 0
+      employeesWithShifts: uniqueEmployeesWithShifts.size
     };
   } catch (error) {
     console.error('Error fetching employee stats:', error);
