@@ -1,24 +1,21 @@
 import { format, addDays } from 'https://esm.sh/date-fns@3.3.1';
-import { ShiftAssignmentManager } from './ShiftAssignmentManager.ts';
-import { ShiftRequirementsManager } from './ShiftRequirementsManager.ts';
-import { SchedulingStrategy } from './SchedulingStrategy.ts';
-import type { 
+import { 
   SchedulingContext, 
   SchedulingResult, 
   ScheduleAssignment, 
   CoverageStatus,
   Employee 
-} from './types.ts';
+} from './types';
+import { CoverageCalculator } from './CoverageCalculator';
+import { ShiftDistributor } from './ShiftDistributor';
 
 export class SchedulingEngine {
-  private shiftAssignmentManager: ShiftAssignmentManager;
-  private requirementsManager: ShiftRequirementsManager;
-  private strategy: SchedulingStrategy;
+  private coverageCalculator: CoverageCalculator;
+  private shiftDistributor: ShiftDistributor;
 
   constructor() {
-    this.requirementsManager = new ShiftRequirementsManager([]);
-    this.shiftAssignmentManager = new ShiftAssignmentManager(this.requirementsManager);
-    this.strategy = new SchedulingStrategy(this.shiftAssignmentManager, this.requirementsManager);
+    this.coverageCalculator = new CoverageCalculator();
+    this.shiftDistributor = new ShiftDistributor();
   }
 
   public async generateSchedule(
@@ -36,52 +33,49 @@ export class SchedulingEngine {
       // Process each day of the week
       for (let i = 0; i < 7; i++) {
         const currentDate = format(addDays(weekStartDate, i), 'yyyy-MM-dd');
-        const dayOfWeek = addDays(weekStartDate, i).getDay();
-        
         console.log(`\n📅 Processing ${format(addDays(weekStartDate, i), 'EEEE, MMM d')}`);
 
         // Get available employees for this day
         const availableEmployees = this.getAvailableEmployees(
           context,
-          dayOfWeek,
+          addDays(weekStartDate, i).getDay(),
           currentDate
         );
 
-        // Calculate coverage requirements
-        const coverage = this.requirementsManager.calculateRequirements(
-          context.coverageRequirements,
-          dayOfWeek
-        );
-
         // Distribute shifts to meet coverage
-        const dailyAssignments = await this.strategy.assignShiftsForDay(
+        const dailyAssignments = this.shiftDistributor.distributeShifts(
           currentDate,
-          {
-            employees: availableEmployees,
-            shifts: context.shifts,
-            availability: context.availability
-          },
-          scheduleId
+          scheduleId,
+          availableEmployees,
+          context.shifts,
+          context.availability
         );
 
         assignments.push(...dailyAssignments);
 
-        // Check if coverage requirements were met
-        const coverageStatus = this.shiftAssignmentManager.checkCoverage(
+        // Check coverage requirements
+        const coverage = this.coverageCalculator.calculateCoverage(
           dailyAssignments,
-          coverage
+          context.shifts,
+          context.coverageRequirements
         );
 
-        if (!this.isCoverageMet(coverageStatus)) {
+        if (!this.isCoverageMet(coverage)) {
           messages.push(`⚠️ Coverage requirements not fully met for ${currentDate}`);
           success = false;
         }
       }
 
+      const finalCoverage = this.coverageCalculator.calculateCoverage(
+        assignments,
+        context.shifts,
+        context.coverageRequirements
+      );
+
       return {
         success,
         assignments,
-        coverage: this.calculateFinalCoverage(assignments, context),
+        coverage: finalCoverage,
         messages
       };
 
@@ -123,16 +117,5 @@ export class SchedulingEngine {
 
   private isCoverageMet(coverage: CoverageStatus): boolean {
     return Object.values(coverage).every(status => status.isMet);
-  }
-
-  private calculateFinalCoverage(
-    assignments: ScheduleAssignment[],
-    context: SchedulingContext
-  ): CoverageStatus {
-    return this.requirementsManager.calculateFinalCoverage(
-      assignments,
-      context.shifts,
-      context.coverageRequirements
-    );
   }
 }
