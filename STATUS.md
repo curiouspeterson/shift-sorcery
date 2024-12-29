@@ -1,7 +1,74 @@
 # ScheduleMe Application Status
 
 ## Overview
-ScheduleMe is a web-based employee scheduling application designed to help managers create and manage work schedules while allowing employees to set their availability and request time off.
+ScheduleMe is a web-based employee scheduling application designed to help managers create and manage work schedules while allowing employees to set their availability and request time off. The application uses Supabase for data persistence and authentication, React for the frontend, and follows modern web development practices.
+
+## Database Schema
+
+### Core Tables
+- `profiles`: Stores user information and role (employee/manager)
+- `shifts`: Defines available shift types and their time ranges
+- `schedules`: Contains weekly schedule information
+- `schedule_assignments`: Links employees to specific shifts
+- `employee_availability`: Tracks when employees can work
+- `time_off_requests`: Manages employee time off requests
+- `shift_swap_requests`: Handles shift trading between employees
+- `coverage_requirements`: Defines minimum staffing needs
+
+### Key Relationships
+- Each schedule can have multiple assignments
+- Assignments link employees, shifts, and schedules
+- Availability is tied to specific employees and days
+- Time off requests are linked to employees
+- Shift swaps reference specific schedule assignments
+
+### Access Control
+- Managers can view and modify all data
+- Employees can:
+  - View published schedules
+  - Manage their availability
+  - Submit time off requests
+  - Request shift swaps
+  - View their own assignments
+- All users can view basic shift information
+
+## Project Structure
+
+```
+src/
+├── components/
+│   ├── dashboard/
+│   │   ├── SidebarMenu.tsx
+│   │   └── SidebarProfile.tsx
+│   ├── employees/
+│   │   ├── availability/
+│   │   ├── EmployeeCard.tsx
+│   │   ├── EmployeeList.tsx
+│   │   └── EmployeeUpcomingShifts.tsx
+│   ├── schedule/
+│   │   ├── ScheduleCalendar.tsx
+│   │   ├── ScheduleControls.tsx
+│   │   └── ShiftUtils.ts
+│   └── ui/
+│       └── [shadcn components]
+├── hooks/
+│   ├── useAvailableEmployees.ts
+│   ├── useEmployeeData.ts
+│   └── use-mobile.tsx
+├── integrations/
+│   └── supabase/
+│       ├── client.ts
+│       └── types.ts
+├── pages/
+│   └── dashboard/
+│       ├── AvailabilityView.tsx
+│       ├── ScheduleView.tsx
+│       └── StatusView.tsx
+└── utils/
+    ├── scheduleUtils.ts
+    ├── shiftTypeUtils.ts
+    └── timeUtils.ts
+```
 
 ## Working Features
 
@@ -18,14 +85,14 @@ ScheduleMe is a web-based employee scheduling application designed to help manag
 
 ### Availability Management
 - ✅ Employees can set their weekly availability
-- ✅ Availability is tied to specific shifts
+- ✅ Availability is tied to specific days
 - ✅ Managers can view all employee availability
 - ✅ Individual availability calendar view
 
 ### Time Off Management
 - ✅ Employees can submit time off requests
 - ✅ Managers can approve/deny requests
-- ✅ Status tracking for requests (pending/approved/denied)
+- ✅ Status tracking for requests
 - ✅ Time off calendar view
 
 ### Schedule Management
@@ -35,53 +102,61 @@ ScheduleMe is a web-based employee scheduling application designed to help manag
 - ✅ View published schedules
 - ✅ Delete schedules
 
-## Recent Improvements
+### Recent Improvements
+- ✅ Enhanced shift capacity tracking
+- ✅ More flexible employee availability system
+- ✅ Added shift swap functionality
+- ✅ Improved coverage requirements tracking
+- ✅ Added schedule acknowledgment system
 
-### Code Organization
-- ✅ Refactored shift utilities into separate modules
-- ✅ Created dedicated time handling utilities
-- ✅ Improved shift type management
-- ✅ Enhanced logging for debugging
-- ✅ Better code modularity and organization
+## Known Issues
 
-### Scheduling Logic
-- ✅ Improved overnight shift detection
-- ✅ Enhanced staff counting accuracy
-- ✅ Better handling of shift overlaps
-- ✅ More accurate time range calculations
-- ✅ Refined shift type determination
+### Schedule Generation
+- ⚠️ Need to improve distribution of employees across shifts
+- ⚠️ Better handling of peak periods
+- ⚠️ More sophisticated employee preference matching
 
-## Known Issues and Incomplete Features
-
-### Schedule Generation Issues
-- ⚠️ Need to improve distribution of employees across different shift types
-- ⚠️ Schedule generation may fail if employee availability is too restrictive
-- ⚠️ Random selection of employees might lead to uneven distribution of shifts
-
-### Missing Features
-- ❌ Shift swapping between employees
-- ❌ Automated notifications for schedule changes
-- ❌ Mobile app version
-- ❌ Export schedules to PDF/Excel
-- ❌ Integration with payroll systems
-- ❌ Advanced reporting and analytics
-
-### UI/UX Improvements Needed
-- 📝 Mobile responsiveness could be enhanced
-- 📝 Better visual feedback for schedule conflicts
-- 📝 More intuitive navigation between different views
+### UI/UX
+- 📝 Mobile responsiveness needs enhancement
+- 📝 Better visual feedback for conflicts
+- 📝 More intuitive navigation
 - 📝 Enhanced calendar interactions
 
+## Upcoming Development Priorities
+
+### Short Term (1-2 Months)
+1. Implement shift swap workflow
+2. Add notification system
+3. Improve mobile responsiveness
+4. Enhance error handling
+5. Add comprehensive testing
+
+### Medium Term (3-6 Months)
+1. Implement advanced reporting
+2. Add schedule templates
+3. Integrate with external calendar systems
+4. Enhance performance monitoring
+5. Add data export capabilities
+
+### Long Term (6+ Months)
+1. Develop mobile app version
+2. Add AI-powered scheduling suggestions
+3. Implement payroll system integration
+4. Add advanced analytics
+5. Create team management features
+
 ## Technical Debt
-- Improve test coverage for utility functions
+- Improve test coverage
+- Enhance error boundaries
 - Add performance monitoring
-- Enhance error handling
-- Add more comprehensive testing
+- Refactor large components
+- Improve state management patterns
 
 ## Security
 - ✅ Row Level Security (RLS) implemented
 - ✅ Role-based access control
 - ✅ Secure authentication flow
 - ✅ Protected API endpoints
+- ✅ Data validation and sanitization
 
 This status document will be updated as new features are added and issues are resolved.

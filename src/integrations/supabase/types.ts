@@ -14,7 +14,10 @@ export type Database = {
           created_at: string
           end_time: string
           id: string
+          is_peak_period: boolean | null
           min_employees: number
+          notes: string | null
+          required_role: Database["public"]["Enums"]["user_role"] | null
           start_time: string
           updated_at: string
         }
@@ -22,7 +25,10 @@ export type Database = {
           created_at?: string
           end_time: string
           id?: string
+          is_peak_period?: boolean | null
           min_employees: number
+          notes?: string | null
+          required_role?: Database["public"]["Enums"]["user_role"] | null
           start_time: string
           updated_at?: string
         }
@@ -30,7 +36,10 @@ export type Database = {
           created_at?: string
           end_time?: string
           id?: string
+          is_peak_period?: boolean | null
           min_employees?: number
+          notes?: string | null
+          required_role?: Database["public"]["Enums"]["user_role"] | null
           start_time?: string
           updated_at?: string
         }
@@ -43,7 +52,6 @@ export type Database = {
           employee_id: string
           end_time: string
           id: string
-          shift_id: string
           start_time: string
           updated_at: string
         }
@@ -53,7 +61,6 @@ export type Database = {
           employee_id: string
           end_time: string
           id?: string
-          shift_id: string
           start_time: string
           updated_at?: string
         }
@@ -63,7 +70,6 @@ export type Database = {
           employee_id?: string
           end_time?: string
           id?: string
-          shift_id?: string
           start_time?: string
           updated_at?: string
         }
@@ -73,13 +79,6 @@ export type Database = {
             columns: ["employee_id"]
             isOneToOne: false
             referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employee_availability_shift_id_fkey"
-            columns: ["shift_id"]
-            isOneToOne: false
-            referencedRelation: "shifts"
             referencedColumns: ["id"]
           },
         ]
@@ -116,6 +115,8 @@ export type Database = {
       }
       schedule_assignments: {
         Row: {
+          acknowledged: boolean | null
+          acknowledged_at: string | null
           created_at: string
           date: string
           employee_id: string
@@ -125,6 +126,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          acknowledged?: boolean | null
+          acknowledged_at?: string | null
           created_at?: string
           date: string
           employee_id: string
@@ -134,6 +137,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          acknowledged?: boolean | null
+          acknowledged_at?: string | null
           created_at?: string
           date?: string
           employee_id?: string
@@ -236,12 +241,65 @@ export type Database = {
           },
         ]
       }
+      shift_swap_requests: {
+        Row: {
+          assignment_id: string
+          created_at: string | null
+          id: string
+          requester_id: string
+          status: string
+          updated_at: string | null
+          volunteer_id: string | null
+        }
+        Insert: {
+          assignment_id: string
+          created_at?: string | null
+          id?: string
+          requester_id: string
+          status?: string
+          updated_at?: string | null
+          volunteer_id?: string | null
+        }
+        Update: {
+          assignment_id?: string
+          created_at?: string | null
+          id?: string
+          requester_id?: string
+          status?: string
+          updated_at?: string | null
+          volunteer_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shift_swap_requests_assignment_id_fkey"
+            columns: ["assignment_id"]
+            isOneToOne: false
+            referencedRelation: "schedule_assignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shift_swap_requests_requester_id_fkey"
+            columns: ["requester_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shift_swap_requests_volunteer_id_fkey"
+            columns: ["volunteer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       shifts: {
         Row: {
           created_at: string
           duration_hours: number | null
           end_time: string
           id: string
+          max_employees: number | null
           name: string
           shift_type: Database["public"]["Enums"]["shift_type"]
           start_time: string
@@ -252,6 +310,7 @@ export type Database = {
           duration_hours?: number | null
           end_time: string
           id?: string
+          max_employees?: number | null
           name: string
           shift_type: Database["public"]["Enums"]["shift_type"]
           start_time: string
@@ -262,6 +321,7 @@ export type Database = {
           duration_hours?: number | null
           end_time?: string
           id?: string
+          max_employees?: number | null
           name?: string
           shift_type?: Database["public"]["Enums"]["shift_type"]
           start_time?: string
