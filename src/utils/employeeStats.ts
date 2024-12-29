@@ -18,7 +18,7 @@ export async function getEmployeeStats(weekDate: Date) {
       .from('schedule_assignments')
       .select('employee_id')
       .eq('date', weekStart)
-      .distinct();
+      .select('employee_id', { count: 'exact', head: true });
     
     if (assignmentsError) throw assignmentsError;
     
