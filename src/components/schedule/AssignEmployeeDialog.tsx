@@ -8,10 +8,9 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { useAvailableEmployees } from "@/hooks/useAvailableEmployees";
-import { LoadingState } from "./employee-dialog/LoadingState";
-import { ErrorState } from "./employee-dialog/ErrorState";
-import { EmployeeList } from "./employee-dialog/EmployeeList";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface AssignEmployeeDialogProps {
   isOpen: boolean;
@@ -20,6 +19,8 @@ interface AssignEmployeeDialogProps {
   date: string;
   scheduleId?: string;
   shiftType: string;
+  availableEmployees: any[];
+  isLoading: boolean;
 }
 
 export function AssignEmployeeDialog({
@@ -29,35 +30,15 @@ export function AssignEmployeeDialog({
   date,
   scheduleId,
   shiftType,
+  availableEmployees,
+  isLoading
 }: AssignEmployeeDialogProps) {
   const queryClient = useQueryClient();
-  const { availableEmployees, loading, error } = useAvailableEmployees(
-    isOpen,
-    shiftId,
-    date
-  );
 
   const assignEmployee = async (employeeId: string) => {
     try {
       console.log('Assigning employee:', employeeId, 'to shift:', shiftId);
       
-      // First verify the shift exists
-      const { data: shift, error: shiftError } = await supabase
-        .from('shifts')
-        .select('*')
-        .eq('id', shiftId)
-        .maybeSingle();
-
-      if (shiftError) {
-        console.error('Error fetching shift:', shiftError);
-        throw new Error('Failed to verify shift');
-      }
-
-      if (!shift) {
-        console.error('Shift not found:', shiftId);
-        throw new Error('Shift not found');
-      }
-
       if (!scheduleId) {
         console.error('No schedule ID provided');
         throw new Error('Schedule ID is required');
@@ -96,16 +77,33 @@ export function AssignEmployeeDialog({
           <DialogTitle>Add Employee to {shiftType}</DialogTitle>
         </DialogHeader>
         <ScrollArea className="max-h-[300px]">
-          {loading ? (
-            <LoadingState />
-          ) : error ? (
-            <ErrorState message={error} />
+          {isLoading ? (
+            <div className="space-y-2">
+              {[1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-12 w-full" />
+              ))}
+            </div>
+          ) : availableEmployees.length === 0 ? (
+            <p className="text-sm text-muted-foreground p-4 text-center">
+              No available employees found for this shift. They might be already scheduled, 
+              at their weekly hour limit, or don't have availability for this shift.
+            </p>
           ) : (
-            <EmployeeList 
-              employees={availableEmployees} 
-              onAssign={assignEmployee}
-              isLoading={loading}
-            />
+            <div className="space-y-2 p-2">
+              {availableEmployees.map(employee => (
+                <Button
+                  key={employee.id}
+                  variant="outline"
+                  className="w-full justify-between"
+                  onClick={() => assignEmployee(employee.id)}
+                >
+                  <span>{employee.first_name} {employee.last_name}</span>
+                  <Badge variant="secondary">
+                    {employee.weekly_hours_limit}h limit
+                  </Badge>
+                </Button>
+              ))}
+            </div>
           )}
         </ScrollArea>
       </DialogContent>
