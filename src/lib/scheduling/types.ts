@@ -1,20 +1,5 @@
 import { ShiftType } from '@/types';
 
-export interface SchedulingContext {
-  employees: Employee[];
-  shifts: Shift[];
-  availability: EmployeeAvailability[];
-  coverageRequirements: CoverageRequirement[];
-  timeOffRequests: TimeOffRequest[];
-}
-
-export interface SchedulingResult {
-  success: boolean;
-  assignments: ScheduleAssignment[];
-  coverage: CoverageStatus;
-  messages: string[];
-}
-
 export interface Employee {
   id: string;
   first_name: string;
@@ -23,12 +8,31 @@ export interface Employee {
   role: 'employee' | 'manager';
 }
 
+export interface Shift {
+  id: string;
+  name: string;
+  start_time: string;
+  end_time: string;
+  shift_type: ShiftType;
+  duration_hours: number;
+  max_employees?: number;
+}
+
 export interface EmployeeAvailability {
   id: string;
   employee_id: string;
   day_of_week: number;
   start_time: string;
   end_time: string;
+}
+
+export interface CoverageRequirement {
+  id: string;
+  start_time: string;
+  end_time: string;
+  min_employees: number;
+  is_peak_period?: boolean;
+  required_role?: string;
 }
 
 export interface TimeOffRequest {
@@ -46,6 +50,13 @@ export interface ScheduleAssignment {
   date: string;
 }
 
+export interface SchedulingResult {
+  success: boolean;
+  assignments: ScheduleAssignment[];
+  coverage: CoverageStatus;
+  messages: string[];
+}
+
 export interface CoverageStatus {
   [key: string]: {
     required: number;
@@ -54,15 +65,10 @@ export interface CoverageStatus {
   };
 }
 
-export interface CoverageTracking {
-  requirement: CoverageRequirement;
-  currentCount: number;
-  minimumMet: boolean;
-}
-
-export interface ShiftRequirements {
-  graveyardShift: number;
-  swingShift: number;
-  dayShift: number;
-  earlyShift: number;
+export interface SchedulingContext {
+  employees: Employee[];
+  shifts: Shift[];
+  availability: EmployeeAvailability[];
+  coverageRequirements: CoverageRequirement[];
+  timeOffRequests: TimeOffRequest[];
 }

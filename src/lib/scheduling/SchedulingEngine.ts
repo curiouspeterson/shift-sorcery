@@ -3,7 +3,7 @@ import {
   SchedulingContext, 
   SchedulingResult, 
   ScheduleAssignment, 
-  Employee, 
+  Employee,
   CoverageStatus 
 } from './types';
 import { CoverageCalculator } from './CoverageCalculator';
