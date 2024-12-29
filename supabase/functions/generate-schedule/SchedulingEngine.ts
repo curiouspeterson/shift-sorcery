@@ -5,9 +5,9 @@ import {
   ScheduleAssignment, 
   CoverageStatus,
   Employee 
-} from './types';
-import { CoverageCalculator } from './CoverageCalculator';
-import { ShiftDistributor } from './ShiftDistributor';
+} from './types.ts';
+import { CoverageCalculator } from './CoverageCalculator.ts';
+import { ShiftDistributor } from './ShiftDistributor.ts';
 
 export class SchedulingEngine {
   private coverageCalculator: CoverageCalculator;
