@@ -1,7 +1,7 @@
 import { format } from "date-fns";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { getShiftType } from "./ShiftUtils";
+import { getShiftType } from "@/utils/shiftTypeUtils";
 
 interface ShiftAssignmentProps {
   assignment: {
