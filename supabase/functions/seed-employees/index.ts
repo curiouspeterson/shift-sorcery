@@ -22,10 +22,8 @@ const lastNames = [
   'Green', 'Adams', 'Nelson', 'Baker', 'Hall', 'Rivera', 'Campbell', 'Mitchell', 'Carter', 'Roberts'
 ]
 
-// Function to generate unique name combinations
 function generateUniqueNames(count: number) {
   const combinations: { firstName: string; lastName: string }[] = [];
-  // Randomize the starting indices
   let firstIndex = Math.floor(Math.random() * firstNames.length);
   let lastIndex = Math.floor(Math.random() * lastNames.length);
 
@@ -49,12 +47,22 @@ function generateUniqueNames(count: number) {
 }
 
 Deno.serve(async (req) => {
-  // Handle CORS preflight requests
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
-  }
-
   try {
+    // Handle CORS preflight requests
+    if (req.method === 'OPTIONS') {
+      return new Response('ok', { headers: corsHeaders })
+    }
+
+    if (req.method !== 'POST') {
+      return new Response(
+        JSON.stringify({ error: 'Method not allowed' }), 
+        { 
+          status: 405,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      )
+    }
+
     console.log('🚀 Starting seed-employees function')
     
     const employees = []
@@ -65,12 +73,11 @@ Deno.serve(async (req) => {
     for (let i = 0; i < uniqueNames.length; i++) {
       const { firstName, lastName } = uniqueNames[i]
       const email = `test.${firstName.toLowerCase()}.${lastName.toLowerCase()}.${timestamp}@example.com`
-      const role = i === 0 ? 'manager' : 'employee' // First user is manager, rest are employees
+      const role = i === 0 ? 'manager' : 'employee'
 
       try {
         console.log(`\n👤 Creating user ${email} with role ${role}`)
 
-        // Create auth user with service role
         const { data: { user }, error: createUserError } = await supabase.auth.admin.createUser({
           email,
           password: 'temppass123',
@@ -113,7 +120,6 @@ Deno.serve(async (req) => {
         if (!profile) {
           console.log(`⚠️ Profile not created automatically for ${email}, creating manually...`)
           
-          // Create profile manually
           const { error: profileError } = await supabase
             .from('profiles')
             .insert([{
@@ -126,7 +132,6 @@ Deno.serve(async (req) => {
 
           if (profileError) {
             console.error(`❌ Error creating profile for ${email}:`, profileError)
-            // Clean up auth user if profile creation fails
             await supabase.auth.admin.deleteUser(user.id)
             console.log('🧹 Cleaned up auth user after profile creation failure')
             continue
