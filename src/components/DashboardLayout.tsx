@@ -11,9 +11,12 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
+  const MAX_RETRIES = 3;
 
   useEffect(() => {
     let mounted = true;
+    let retryTimeout: NodeJS.Timeout;
 
     const checkAuth = async () => {
       try {
@@ -37,22 +40,33 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
           throw userError;
         }
 
-        // Check if user has a profile
+        // Check if user has a profile with retry logic
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('*')
           .eq('id', session.user.id)
-          .single();
+          .maybeSingle();
 
-        if (profileError || !profile) {
+        if (profileError) {
           console.error("Profile error:", profileError);
-          setAuthError("Unable to load user profile. Please contact support.");
+          if (retryCount < MAX_RETRIES) {
+            setRetryCount(prev => prev + 1);
+            retryTimeout = setTimeout(checkAuth, 1000 * (retryCount + 1));
+            return;
+          }
+          throw new Error("Unable to load user profile after multiple attempts");
+        }
+
+        if (!profile) {
+          console.error("No profile found for user");
+          setAuthError("Profile not found. Please contact support.");
           return;
         }
 
         if (mounted) {
           setIsLoading(false);
           setAuthError(null);
+          setRetryCount(0);
         }
       } catch (error: any) {
         console.error("Auth error:", error);
@@ -83,9 +97,10 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
 
     return () => {
       mounted = false;
+      if (retryTimeout) clearTimeout(retryTimeout);
       subscription.unsubscribe();
     };
-  }, [navigate]);
+  }, [navigate, retryCount]);
 
   if (authError) {
     return (
