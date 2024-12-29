@@ -30,13 +30,17 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
 
         if (!session) {
           console.log("No session found, redirecting to login");
-          await clearAuthData();
-          navigate("/");
+          if (mounted) {
+            setIsLoading(false);
+            await clearAuthData();
+            navigate("/");
+          }
           return;
         }
 
-        // Reset retry count on successful auth
+        // Session exists, reset states
         if (mounted) {
+          console.log("Session found, proceeding to dashboard");
           setRetryCount(0);
           setAuthError(null);
           setIsLoading(false);
@@ -44,29 +48,30 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
 
       } catch (error: any) {
         console.error("Auth error:", error);
-        if (mounted) {
-          if (retryCount < MAX_RETRIES) {
-            console.log(`Retrying auth check (attempt ${retryCount + 1}/${MAX_RETRIES})...`);
-            setRetryCount(prev => prev + 1);
-            retryTimeout = setTimeout(checkAuth, 1000 * Math.pow(2, retryCount)); // Exponential backoff
-            return;
-          }
-          
-          setAuthError(error.message);
-          setIsLoading(false);
-          await clearAuthData();
-          navigate("/");
-          
-          toast.error("Authentication error", {
-            description: error.message
-          });
+        if (!mounted) return;
+
+        if (retryCount < MAX_RETRIES) {
+          console.log(`Retrying auth check (attempt ${retryCount + 1}/${MAX_RETRIES})...`);
+          setRetryCount(prev => prev + 1);
+          retryTimeout = setTimeout(checkAuth, 1000 * Math.pow(2, retryCount));
+          return;
         }
+        
+        setAuthError(error.message);
+        setIsLoading(false);
+        await clearAuthData();
+        navigate("/");
+        
+        toast.error("Authentication error", {
+          description: error.message
+        });
       }
     };
     
     checkAuth();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth state changed:', event);
       if (event === 'SIGNED_OUT' || !session) {
         await clearAuthData();
         navigate("/");
