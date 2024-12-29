@@ -1,45 +1,63 @@
-import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { getShiftType } from "./ShiftUtils";
 
 interface ShiftAssignmentProps {
-  assignment: any;
+  assignment: {
+    employee: {
+      first_name: string;
+      last_name: string;
+    };
+    shift: {
+      name: string;
+      start_time: string;
+      end_time: string;
+    };
+  };
 }
 
-const getShiftColor = (shiftType: string) => {
-  switch (shiftType) {
-    case "Day Shift Early":
-      return "bg-green-100 text-green-800 border-green-200";
-    case "Day Shift":
-      return "bg-orange-100 text-orange-800 border-orange-200";
-    case "Swing Shift":
-      return "bg-purple-100 text-purple-800 border-purple-200";
-    case "Graveyard":
-      return "bg-pink-100 text-pink-800 border-pink-200";
-    default:
-      return "bg-muted text-muted-foreground";
-  }
-};
-
 export function ShiftAssignment({ assignment }: ShiftAssignmentProps) {
+  const formatTime = (timeStr: string) => {
+    try {
+      return format(new Date(`2000-01-01T${timeStr}`), 'h:mm a');
+    } catch (error) {
+      console.error('Error formatting time:', error);
+      return timeStr;
+    }
+  };
+
   const shiftType = getShiftType(assignment.shift.start_time);
-  const colorClasses = getShiftColor(shiftType);
+  const getShiftColor = () => {
+    switch (shiftType) {
+      case "Day Shift Early":
+        return "bg-green-100 text-green-800 border-green-200";
+      case "Day Shift":
+        return "bg-orange-100 text-orange-800 border-orange-200";
+      case "Swing Shift":
+        return "bg-purple-100 text-purple-800 border-purple-200";
+      case "Graveyard":
+        return "bg-pink-100 text-pink-800 border-pink-200";
+      default:
+        return "bg-muted text-muted-foreground";
+    }
+  };
 
   return (
-    <div className="flex items-center justify-between bg-muted p-2 rounded-lg">
-      <div>
-        <span className="font-medium">
-          {assignment.employee.first_name} {assignment.employee.last_name}
+    <Card className="p-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className={getShiftColor()}>
+            {shiftType}
+          </Badge>
+          <span className="font-medium">
+            {assignment.employee.first_name} {assignment.employee.last_name}
+          </span>
+        </div>
+        <span className="text-sm text-muted-foreground">
+          {formatTime(assignment.shift.start_time)} - {formatTime(assignment.shift.end_time)}
         </span>
-        <Badge variant="outline" className={`ml-2 ${colorClasses}`}>
-          {assignment.shift.name}
-        </Badge>
       </div>
-      <span className="text-sm text-muted-foreground">
-        {format(new Date(`2000-01-01T${assignment.shift.start_time}`), "h:mm a")}{" "}
-        -{" "}
-        {format(new Date(`2000-01-01T${assignment.shift.end_time}`), "h:mm a")}
-      </span>
-    </div>
+    </Card>
   );
 }
