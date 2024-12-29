@@ -31,17 +31,31 @@ export function ScheduleCalendar({
     }
   });
 
-  const sortAssignmentsByShiftTime = (assignments: any[]) => {
+  const sortAssignmentsByShiftType = (assignments: any[]) => {
+    const shiftOrder = {
+      "Day Shift Early": 1,
+      "Day Shift": 2,
+      "Swing Shift": 3,
+      "Graveyard": 4
+    };
+
     return [...assignments].sort((a, b) => {
+      const aType = getShiftType(a.shift.start_time);
+      const bType = getShiftType(b.shift.start_time);
+      
+      // First sort by shift type
+      const typeComparison = (shiftOrder[aType as keyof typeof shiftOrder] || 0) - 
+                            (shiftOrder[bType as keyof typeof shiftOrder] || 0);
+      
+      if (typeComparison !== 0) return typeComparison;
+      
+      // If same shift type, sort by start time
       const getMinutes = (timeStr: string) => {
         const [hours, minutes] = timeStr.split(':').map(Number);
         return hours * 60 + minutes;
       };
       
-      const aMinutes = getMinutes(a.shift.start_time);
-      const bMinutes = getMinutes(b.shift.start_time);
-      
-      return aMinutes - bMinutes;
+      return getMinutes(a.shift.start_time) - getMinutes(b.shift.start_time);
     });
   };
 
@@ -63,7 +77,7 @@ export function ScheduleCalendar({
           {Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)).map((day) => {
             const formattedDate = format(day, "yyyy-MM-dd");
             const dayAssignments = getShiftAssignments(scheduleData?.schedule_assignments, formattedDate);
-            const sortedAssignments = sortAssignmentsByShiftTime(dayAssignments);
+            const sortedAssignments = sortAssignmentsByShiftType(dayAssignments);
 
             return (
               <div key={day.toISOString()} className="border-b pb-4 last:border-0">
