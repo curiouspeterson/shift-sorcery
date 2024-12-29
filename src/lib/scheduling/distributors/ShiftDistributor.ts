@@ -84,6 +84,7 @@ export class ShiftDistributor {
     return employees.filter(employee => {
       // Skip if already assigned today
       if (assignedToday.has(employee.id)) {
+        console.log(`Employee ${employee.id} already assigned today`);
         return false;
       }
 
@@ -101,12 +102,14 @@ export class ShiftDistributor {
       );
 
       if (!hasAvailability) {
+        console.log(`Employee ${employee.id} not available for this shift`);
         return false;
       }
 
       // Check weekly hours limit
       const weeklyHours = this.calculateWeeklyHours(employee.id, existingAssignments, shift);
       if (weeklyHours > employee.weekly_hours_limit) {
+        console.log(`Employee ${employee.id} would exceed weekly hours limit`);
         return false;
       }
 
