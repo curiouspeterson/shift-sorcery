@@ -1,12 +1,12 @@
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { generateScheduleForWeek, publishSchedule } from "@/utils/schedulingEngine";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { format, startOfWeek } from "date-fns";
-import { Badge } from "@/components/ui/badge";
-import { Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { ScheduleStatus } from "./controls/ScheduleStatus";
+import { ScheduleActions } from "./controls/ScheduleActions";
+import { DraftNotice } from "./controls/DraftNotice";
 
 interface ScheduleControlsProps {
   selectedDate: Date;
@@ -104,47 +104,18 @@ export function ScheduleControls({
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <h3 className="text-lg font-medium">Schedule Status</h3>
-          {scheduleData ? (
-            <Badge variant={scheduleData.status === 'draft' ? 'secondary' : 'outline'}>
-              {scheduleData.status === 'draft' ? 'Draft' : 'Published'}
-            </Badge>
-          ) : (
-            <Badge variant="outline">No Schedule</Badge>
-          )}
-          {scheduleData && (
-            <Button 
-              onClick={handleDeleteSchedule} 
-              variant="destructive" 
-              size="icon"
-              className="ml-2 h-7 w-7"
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          )}
-        </div>
-        <div className="space-x-2">
-          {!scheduleData && (
-            <Button onClick={handleGenerateSchedule}>
-              Generate Schedule
-            </Button>
-          )}
-          {scheduleData?.status === 'draft' && (
-            <Button onClick={handlePublishSchedule} variant="secondary">
-              Publish Schedule
-            </Button>
-          )}
-        </div>
+        <ScheduleStatus 
+          status={scheduleData?.status} 
+          onDelete={handleDeleteSchedule} 
+        />
+        <ScheduleActions 
+          status={scheduleData?.status}
+          onGenerate={handleGenerateSchedule}
+          onPublish={handlePublishSchedule}
+        />
       </div>
 
-      {scheduleData?.status === 'draft' && (
-        <div className="bg-muted p-4 rounded-lg">
-          <p className="text-sm text-muted-foreground">
-            This schedule is in draft mode. Review the assignments below and publish when ready.
-          </p>
-        </div>
-      )}
+      {scheduleData?.status === 'draft' && <DraftNotice />}
     </div>
   );
 }
