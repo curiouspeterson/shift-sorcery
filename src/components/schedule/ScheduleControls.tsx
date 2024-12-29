@@ -1,19 +1,20 @@
-import { Button } from "@/components/ui/button";
-import { generateScheduleForWeek, publishSchedule } from "@/utils/schedulingEngine";
-import { toast } from "sonner";
+import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { format, startOfWeek } from "date-fns";
+import { format } from "date-fns";
+import { generateScheduleForWeek, publishSchedule } from "@/utils/schedulingEngine";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import { ScheduleStatus } from "./controls/ScheduleStatus";
 import { ScheduleActions } from "./controls/ScheduleActions";
 import { DraftNotice } from "./controls/DraftNotice";
-import { useState } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface ScheduleControlsProps {
   selectedDate: Date;
   userId: string;
   onScheduleGenerated: () => void;
   scheduleData?: any;
+  isLoading?: boolean;
 }
 
 export function ScheduleControls({
@@ -21,6 +22,7 @@ export function ScheduleControls({
   userId,
   onScheduleGenerated,
   scheduleData,
+  isLoading = false
 }: ScheduleControlsProps) {
   const queryClient = useQueryClient();
   const [isGenerating, setIsGenerating] = useState(false);
@@ -45,7 +47,7 @@ export function ScheduleControls({
       onScheduleGenerated();
       
       toast.success("Schedule generated successfully", {
-        description: `Draft schedule created for week of ${format(startOfWeek(selectedDate), "MMM d, yyyy")}`
+        description: `Draft schedule created for week of ${format(selectedDate, "MMM d, yyyy")}`
       });
     } catch (error: any) {
       console.error('❌ Schedule generation failed:', error);
@@ -105,6 +107,17 @@ export function ScheduleControls({
       toast.error("Failed to delete schedule: " + error.message);
     }
   };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <Skeleton className="h-8 w-32" />
+          <Skeleton className="h-10 w-40" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">

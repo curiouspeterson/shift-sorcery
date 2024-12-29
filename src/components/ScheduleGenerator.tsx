@@ -23,7 +23,7 @@ export function ScheduleGenerator() {
     fetchUserId();
   }, []);
 
-  const { data: scheduleData, refetch } = useQuery({
+  const { data: scheduleData, isLoading, refetch } = useQuery({
     queryKey: ["schedule", format(selectedDate, "yyyy-MM-dd")],
     queryFn: async () => {
       const weekStart = startOfWeek(selectedDate);
@@ -95,6 +95,7 @@ export function ScheduleGenerator() {
             userId={userId}
             onScheduleGenerated={handleScheduleGenerated}
             scheduleData={scheduleData}
+            isLoading={isLoading}
           />
         </CardContent>
       </Card>
@@ -103,6 +104,7 @@ export function ScheduleGenerator() {
         selectedDate={selectedDate}
         onDateSelect={(date) => date && setSelectedDate(date)}
         scheduleData={scheduleData}
+        isLoading={isLoading}
       />
     </div>
   );
