@@ -1,4 +1,5 @@
-import { Shift, ShiftType } from '@/types';
+import { Shift, ShiftType, CoverageRequirement } from '@/types';
+import { parseTime, normalizeMinutes } from '@/utils/timeUtils';
 
 export function getShiftType(startTime: string): ShiftType {
   const hour = parseInt(startTime.split(':')[0]);
@@ -7,6 +8,44 @@ export function getShiftType(startTime: string): ShiftType {
   if (hour >= 8 && hour < 16) return "Day Shift";
   if (hour >= 16 && hour < 22) return "Swing Shift";
   return "Graveyard";
+}
+
+export function getShiftDuration(shift: Shift): number {
+  const start = new Date(`2000-01-01T${shift.start_time}`);
+  let end = new Date(`2000-01-01T${shift.end_time}`);
+  
+  // Handle overnight shifts
+  if (end < start) {
+    end = new Date(`2000-01-02T${shift.end_time}`);
+  }
+  
+  return (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+}
+
+export function shiftCoversPeriod(shift: Shift, req: CoverageRequirement): boolean {
+  const shiftStart = parseTime(shift.start_time);
+  const shiftEnd = parseTime(shift.end_time);
+  const reqStart = parseTime(req.start_time);
+  const reqEnd = parseTime(req.end_time);
+
+  // Handle overnight shifts
+  if (reqEnd < reqStart) {
+    return (
+      (shiftStart <= reqEnd || shiftStart >= reqStart) &&
+      (shiftEnd <= reqEnd || shiftEnd >= reqStart)
+    );
+  }
+
+  return shiftStart <= reqEnd && shiftEnd >= reqStart;
+}
+
+export function isShiftCompatible(
+  employeePattern: ShiftType | undefined,
+  shift: Shift,
+  isShortShift: boolean
+): boolean {
+  if (!employeePattern || !isShortShift) return true;
+  return getShiftType(shift.start_time) === employeePattern;
 }
 
 export function isTimeWithinAvailability(
@@ -20,36 +59,19 @@ export function isTimeWithinAvailability(
     return hours * 60 + minutes;
   };
 
-  const shiftStartMins = convertToMinutes(shiftStart);
-  const shiftEndMins = convertToMinutes(shiftEnd);
-  const availStartMins = convertToMinutes(availStart);
-  const availEndMins = convertToMinutes(availEnd);
+  let shiftStartMins = convertToMinutes(shiftStart);
+  let shiftEndMins = convertToMinutes(shiftEnd);
+  let availStartMins = convertToMinutes(availStart);
+  let availEndMins = convertToMinutes(availEnd);
 
   // Handle overnight shifts
-  if (shiftEndMins <= shiftStartMins) {
-    // Shift crosses midnight
-    return (availEndMins <= availStartMins) || // Availability also crosses midnight
-           (shiftStartMins >= availStartMins && availEndMins >= shiftStartMins) || // Start time fits
-           (shiftEndMins <= availEndMins && availStartMins <= shiftEndMins); // End time fits
-  }
+  shiftEndMins = normalizeMinutes(shiftEndMins, shiftStartMins);
+  availEndMins = normalizeMinutes(availEndMins, availStartMins);
 
-  // Regular shift (doesn't cross midnight)
+  // Handle overnight availability
   if (availEndMins <= availStartMins) {
-    // Availability crosses midnight
     return shiftStartMins >= availStartMins || shiftEndMins <= availEndMins;
   }
 
   return shiftStartMins >= availStartMins && shiftEndMins <= availEndMins;
-}
-
-export function calculateShiftDuration(shift: Shift): number {
-  const start = new Date(`2000-01-01T${shift.start_time}`);
-  let end = new Date(`2000-01-01T${shift.end_time}`);
-  
-  // Handle overnight shifts
-  if (end <= start) {
-    end = new Date(`2000-01-02T${shift.end_time}`);
-  }
-  
-  return (end.getTime() - start.getTime()) / (1000 * 60 * 60);
 }

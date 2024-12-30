@@ -1,31 +1,5 @@
 import { Employee, ScheduleAssignment, EmployeeAvailability } from '../types';
-
-export const isTimeWithinAvailability = (
-  shiftStart: string,
-  shiftEnd: string,
-  availStart: string,
-  availEnd: string
-): boolean => {
-  const convertToMinutes = (time: string) => {
-    const [hours, minutes] = time.split(':').map(Number);
-    return hours * 60 + minutes;
-  };
-
-  const shiftStartMins = convertToMinutes(shiftStart);
-  const shiftEndMins = convertToMinutes(shiftEnd);
-  const availStartMins = convertToMinutes(availStart);
-  const availEndMins = convertToMinutes(availEnd);
-
-  // Handle overnight shifts
-  if (availEndMins < availStartMins) {
-    return (
-      (shiftStartMins >= availStartMins || shiftStartMins <= availEndMins) &&
-      (shiftEndMins >= availStartMins || shiftEndMins <= availEndMins)
-    );
-  }
-
-  return shiftStartMins >= availStartMins && shiftEndMins <= availEndMins;
-};
+import { isTimeWithinAvailability } from './shiftUtils';
 
 export const filterAvailableEmployees = (
   employees: Employee[],
@@ -40,7 +14,7 @@ export const filterAvailableEmployees = (
       assignment => assignment.employee_id === employee.id
     );
     if (alreadyAssigned) {
-      console.log(`Employee ${employee.id} already assigned today`);
+      console.log(`${employee.first_name} ${employee.last_name} already assigned today`);
       return false;
     }
 
@@ -59,7 +33,7 @@ export const filterAvailableEmployees = (
     });
 
     if (!hasAvailability) {
-      console.log(`Employee ${employee.id} not available for this shift`);
+      console.log(`${employee.first_name} ${employee.last_name} has no availability for shift ${shift.name}`);
     }
 
     return hasAvailability;
