@@ -1,32 +1,32 @@
 export class TimeSlotManager {
-  private employeesPerTimeSlot: Map<string, number> = new Map();
+  private timeSlots: Map<string, Set<string>> = new Map();
 
-  public resetCounts(): void {
-    this.employeesPerTimeSlot.clear();
+  addTimeSlot(date: string, employeeId: string) {
+    if (!this.timeSlots.has(date)) {
+      this.timeSlots.set(date, new Set());
+    }
+    this.timeSlots.get(date)?.add(employeeId);
   }
 
-  public canAddToTimeSlots(timeSlots: string[], required: number): boolean {
-    for (const slot of timeSlots) {
-      const currentCount = this.employeesPerTimeSlot.get(slot) || 0;
-      if (currentCount + 1 > required) {
-        console.log(`❌ Cannot assign: would exceed minimum requirement (${required}) at ${slot}`);
-        return false;
+  isTimeSlotAvailable(date: string, employeeId: string): boolean {
+    return !this.timeSlots.get(date)?.has(employeeId);
+  }
+
+  clearTimeSlots() {
+    this.timeSlots.clear();
+  }
+
+  getAssignedEmployeesForDate(date: string): string[] {
+    return Array.from(this.timeSlots.get(date) || []);
+  }
+
+  getTotalAssignmentsForEmployee(employeeId: string): number {
+    let count = 0;
+    for (const assignments of this.timeSlots.values()) {
+      if (assignments.has(employeeId)) {
+        count++;
       }
     }
-    return true;
-  }
-
-  public updateTimeSlots(timeSlots: string[], increment: boolean = true): void {
-    const delta = increment ? 1 : -1;
-    for (const slot of timeSlots) {
-      const currentCount = this.employeesPerTimeSlot.get(slot) || 0;
-      this.employeesPerTimeSlot.set(slot, currentCount + delta);
-    }
-  }
-
-  public getCapacityInfo(): string {
-    return Array.from(this.employeesPerTimeSlot.entries())
-      .map(([slot, count]) => `${slot}: ${count}`)
-      .join('\n');
+    return count;
   }
 }
