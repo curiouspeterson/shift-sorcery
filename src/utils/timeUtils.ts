@@ -28,3 +28,28 @@ export function doesTimeRangeOverlap(
   
   return start1 < end2 && end1 > start2;
 }
+
+export function isTimeOverlapping(
+  shiftStart: string,
+  shiftEnd: string,
+  availStart: string,
+  availEnd: string
+): boolean {
+  const shift1 = parseTime(shiftStart);
+  const shift2 = parseTime(shiftEnd);
+  const avail1 = parseTime(availStart);
+  const avail2 = parseTime(availEnd);
+
+  return doesTimeRangeOverlap(shift1, shift2, avail1, avail2);
+}
+
+export function calculateShiftDuration(startTime: string, endTime: string): number {
+  const start = parseTime(startTime);
+  let end = parseTime(endTime);
+  
+  if (end <= start) {
+    end += 24 * 60;
+  }
+  
+  return (end - start) / 60;
+}
